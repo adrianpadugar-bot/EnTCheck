@@ -1,0 +1,2977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>End Trip Checklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script>
+  // =====================================================================
+  // FIREBASE CONFIG — REQUIRED. Paste your own project's config here.
+  // Get this from: Firebase Console -> Project Settings -> General ->
+  // "Your apps" -> Web app -> SDK setup and configuration -> Config.
+  // These values are meant to be public (they identify your project, they
+  // are not secret keys) — access control is handled by Firestore Security
+  // Rules instead, see the setup notes provided alongside this file.
+  // =====================================================================
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAbCRgGkbijmVsPrzv8ZjZi_eIyeo2ND9A",
+    authDomain: "end-trip.firebaseapp.com",
+    projectId: "end-trip",
+    storageBucket: "end-trip.firebasestorage.app",
+    messagingSenderId: "943748084573",
+    appId: "1:943748084573:web:964fdd3487c7ae7b16aeb4",
+    measurementId: "G-PBVDPYHXE9"
+  };
+</script>
+<style>
+  :root{
+    --bg: #14181f;
+    --panel: #1e242e;
+    --panel-2: #262e3a;
+    --line: #333d4a;
+    --amber: #f5a623;
+    --amber-dim: #8a611a;
+    --ok: #4cc38a;
+    --bad: #e5484d;
+    --na: #6b7688;
+    --text: #eef1f5;
+    --muted: #92a0b3;
+    --mono: 'JetBrains Mono', monospace;
+    --disp: 'Oswald', sans-serif;
+    --body: 'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text); font-family:var(--body); overflow-x:hidden;}
+  body{
+    background-image:
+      repeating-linear-gradient(135deg, rgba(245,166,35,0.025) 0px, rgba(245,166,35,0.025) 2px, transparent 2px, transparent 14px);
+  }
+  .app{max-width:520px; margin:0 auto; min-height:100vh; padding-bottom:100px;}
+
+  /* HEADER / DASH CLUSTER */
+  .dash{
+    background: linear-gradient(180deg, #1a2028 0%, #12161c 100%);
+    border-bottom: 3px solid var(--amber);
+    padding: 18px 18px 16px;
+    position: sticky; top:0; z-index: 20;
+  }
+  .dash-top{display:flex; align-items:baseline; justify-content:space-between; gap:8px;}
+  .dash-title{
+    font-family:var(--disp); font-weight:700; font-size:20px; letter-spacing:0.5px;
+    text-transform:uppercase; color:var(--text);
+  }
+  .dash-title span{color:var(--amber);}
+  .dash-sub{font-family:var(--mono); font-size:10.5px; color:var(--muted); letter-spacing:1px;}
+
+  .odometer{
+    margin-top:14px; background:#0d1016; border:1px solid var(--line); border-radius:8px;
+    padding:10px 14px; display:flex; align-items:center; justify-content:space-between;
+  }
+  .odo-label{font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;}
+  .odo-digits{font-family:var(--mono); font-size:26px; font-weight:700; color:var(--amber); letter-spacing:1px; font-variant-numeric: tabular-nums;}
+  .odo-digits .slash{color:var(--muted); font-size:18px; margin:0 2px;}
+  .odo-bar{height:4px; background:var(--line); border-radius:2px; margin-top:10px; overflow:hidden;}
+  .odo-bar-fill{height:100%; background:var(--amber); width:0%; transition:width .25s ease;}
+
+  /* FORM META */
+  .meta{padding:16px 18px 4px; display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .meta .full{grid-column:1/-1;}
+  .field label{
+    display:block; font-family:var(--mono); font-size:10px; letter-spacing:1.2px; color:var(--muted);
+    text-transform:uppercase; margin-bottom:5px;
+  }
+  .field input, .field select{
+    width:100%; background:var(--panel); border:1px solid var(--line); color:var(--text);
+    padding:11px 10px; border-radius:6px; font-family:var(--body); font-size:14.5px; font-weight:500;
+  }
+  .field select{appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2392a0b3' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat:no-repeat; background-position:right 10px center; background-size:16px; padding-right:32px;}
+  .field input:focus, .field select:focus{outline:none; border-color:var(--amber);}
+
+  /* SECTION HEADERS */
+  .section{padding:18px 18px 4px;}
+  .section-head{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .section-head .bar{width:4px; height:16px; background:var(--amber); border-radius:2px;}
+  .section-head h2{font-family:var(--disp); font-size:14px; letter-spacing:1.5px; text-transform:uppercase; margin:0; color:var(--text);}
+  .section-head .count{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--muted);}
+
+  /* CHECK ITEMS */
+  .item{
+    background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:12px 12px; margin-bottom:8px;
+  }
+  .item-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .item-name{font-size:14px; font-weight:600; color:var(--text);}
+  .status-group{display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:10px;}
+  .status-btn{
+    border:1px solid var(--line); background:var(--panel-2); color:var(--muted);
+    font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.5px;
+    padding:9px 4px; border-radius:6px; text-align:center; cursor:pointer; user-select:none;
+    transition: all .12s ease;
+  }
+  .status-btn.ok.active{background:rgba(76,195,138,0.15); border-color:var(--ok); color:var(--ok);}
+  .status-btn.bad.active{background:rgba(229,72,77,0.15); border-color:var(--bad); color:var(--bad);}
+  .status-btn.na.active{background:rgba(107,118,136,0.2); border-color:var(--na); color:#c3cbd6;}
+
+  .photo-unit{display:flex; flex-direction:column; align-items:center; gap:4px;}
+  .photo-angle-label{font-family:var(--mono); font-size:9px; letter-spacing:0.5px; color:var(--muted); text-transform:uppercase;}
+  .photo-row{margin-top:10px; display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap;}
+  .photo-required-tag{
+    font-family:var(--mono); font-size:10px; letter-spacing:0.5px; color:var(--bad);
+    background:rgba(229,72,77,0.12); border:1px solid rgba(229,72,77,0.4); border-radius:5px;
+    padding:3px 7px; margin-top:8px; display:inline-block;
+  }
+  .photo-required-tag.satisfied{color:var(--ok); background:rgba(76,195,138,0.12); border-color:rgba(76,195,138,0.4);}
+  .photo-add-btn{
+    width:64px; height:64px; border-radius:8px; border:1.5px dashed var(--line); background:var(--panel-2);
+    color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
+  }
+  .photo-add-btn.missing{border-color:var(--bad); color:var(--bad);}
+  .photo-add-btn svg{width:22px; height:22px;}
+  .photo-thumb{
+    position:relative; width:64px; height:64px; border-radius:8px; overflow:hidden; flex:none; border:1px solid var(--line);
+  }
+  .photo-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .photo-thumb .photo-remove{
+    position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; background:rgba(10,12,16,0.8);
+    color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; cursor:pointer; border:none;
+  }
+  .brand-row{margin-top:10px;}
+  .reason-row{margin-top:10px;}
+  .reason-label{
+    display:block; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--bad);
+    text-transform:uppercase; margin-bottom:5px;
+  }
+  .reason-input{
+    width:100%; background:var(--panel-2); border:1px solid var(--bad); color:var(--text);
+    padding:9px 10px; border-radius:6px; font-family:var(--body); font-size:13px; min-height:56px; resize:vertical;
+  }
+  .reason-input:focus{outline:none; border-color:var(--bad); box-shadow:0 0 0 2px rgba(229,72,77,0.2);}
+  .reason-input::placeholder{color:var(--muted);}
+  select.reason-input{
+    min-height:auto; resize:none; cursor:pointer;
+    appearance:none; -webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e5484d' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat:no-repeat; background-position:right 10px center; background-size:14px; padding-right:30px;
+  }
+  .brand-row select{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    padding:9px 10px; border-radius:6px; font-family:var(--body); font-size:13.5px;
+    appearance:none; -webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2392a0b3' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat:no-repeat; background-position:right 10px center; background-size:14px; padding-right:30px;
+  }
+
+  /* TOOLS */
+  .tool-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .tool-item{
+    background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:12px; display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;
+  }
+  .tool-check{
+    width:20px; height:20px; border-radius:5px; border:2px solid var(--line); flex:none;
+    display:flex; align-items:center; justify-content:center; transition:all .12s ease;
+  }
+  .tool-item.checked .tool-check{background:var(--amber); border-color:var(--amber);}
+  .tool-check svg{width:12px; height:12px; opacity:0; transition:opacity .1s;}
+  .tool-item.checked .tool-check svg{opacity:1;}
+  .tool-label{font-size:13.5px; font-weight:500;}
+
+  /* NOTES */
+  textarea{
+    width:100%; background:var(--panel); border:1px solid var(--line); color:var(--text);
+    padding:11px; border-radius:8px; font-family:var(--body); font-size:13.5px; min-height:80px; resize:vertical;
+  }
+  textarea:focus{outline:none; border-color:var(--amber);}
+
+  /* ACTION BAR */
+  .action-bar{
+    position:fixed; bottom:0; left:0; right:0; background:#0d1016cc; backdrop-filter:blur(10px);
+    border-top:1px solid var(--line); padding:12px 18px; z-index:30;
+  }
+  .action-inner{max-width:520px; margin:0 auto; display:flex; gap:10px;}
+  .btn{
+    flex:1; padding:14px; border-radius:8px; border:none; font-family:var(--disp);
+    font-size:14px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; font-weight:600;
+  }
+  .btn-primary{background:var(--amber); color:#1a1408;}
+  .btn-primary:active{background:#dd9418;}
+  .btn-ghost{background:transparent; border:1px solid var(--line); color:var(--muted); flex:0 0 88px;}
+
+  .toast{
+    position:fixed; bottom:88px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--ok); color:#08160f; font-weight:700; font-size:13px; padding:10px 18px;
+    border-radius:20px; opacity:0; transition:all .25s ease; z-index:40; pointer-events:none;
+    font-family:var(--body);
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* HISTORY */
+  .history-list{display:flex; flex-direction:column; gap:8px;}
+  .history-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .history-meta{flex:1; min-width:0;}
+  .history-plate{font-family:var(--mono); font-weight:700; font-size:14px; color:var(--amber);}
+  .history-sub{font-size:11.5px; color:var(--muted); margin-top:2px;}
+  .history-badge{
+    font-family:var(--mono); font-size:11px; font-weight:700; padding:4px 8px; border-radius:5px; flex:none;
+  }
+  .history-badge.clean{background:rgba(76,195,138,0.15); color:var(--ok);}
+  .history-badge.flag{background:rgba(229,72,77,0.15); color:var(--bad);}
+  .history-del{background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; padding:4px 6px; flex:none;}
+  .history-dl{background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 6px; flex:none;}
+  .history-dl:active{color:var(--amber);}
+  .roster-actions{display:flex; gap:2px; flex:none;}
+  .summary-card{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; margin-bottom:10px;}
+  .summary-title{font-family:var(--disp); font-size:15px; letter-spacing:0.5px; text-transform:uppercase; color:var(--text); margin-bottom:10px;}
+  .summary-row{margin-bottom:10px;}
+  .summary-row:last-child{margin-bottom:0;}
+  .summary-row-clickable{cursor:pointer; border-radius:6px; margin:0 -6px 10px; padding:6px; transition:background .12s ease;}
+  .summary-row-clickable:last-child{margin-bottom:-6px;}
+  .summary-row-clickable:active{background:var(--panel-2);}
+  @media (hover:hover){ .summary-row-clickable:hover{background:var(--panel-2);} }
+  .summary-row-top{display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:4px;}
+  .summary-label{font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase;}
+  .summary-value{font-family:var(--mono); font-size:12.5px; font-weight:700; color:var(--ok); white-space:nowrap;}
+  .summary-value.flag{color:var(--bad);}
+  .summary-value.pending{color:var(--amber);}
+  .summary-bar{height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden;}
+  .summary-bar-fill{height:100%; background:var(--ok); transition:width .25s ease;}
+  .summary-bar-fill.flag{background:var(--bad);}
+  .summary-bar-fill.pending{background:var(--amber);}
+
+  .driver-card{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:8px; display:flex; gap:12px; align-items:flex-start;}
+  .driver-rank{font-family:var(--disp); font-size:18px; font-weight:700; color:var(--amber); flex:none; width:24px; text-align:center; padding-top:2px;}
+  .driver-info{flex:1; min-width:0;}
+  .driver-name-row{display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap;}
+  .driver-name{font-size:14px; font-weight:700; color:var(--text);}
+  .driver-count{font-family:var(--mono); font-size:12.5px; font-weight:700; color:var(--bad); white-space:nowrap;}
+  .driver-agency{font-family:var(--mono); font-size:10.5px; color:var(--muted); letter-spacing:0.5px; text-transform:uppercase; margin-top:2px;}
+  .driver-reasons{margin-top:8px; display:flex; flex-direction:column; gap:4px;}
+  .driver-reason-line{font-size:12px; color:var(--muted); padding:3px 8px; background:var(--panel-2); border-radius:5px; border-left:2px solid var(--bad);}
+  .driver-reason-line b{color:var(--text); font-weight:600;}
+  .driver-reason-line .rcount{color:var(--bad); font-family:var(--mono); font-weight:700;}
+  .summary-empty-note{font-size:11px; color:var(--muted); margin-top:8px;}
+  .roster-edit{background:none; border:none; color:var(--muted); font-size:15px; cursor:pointer; padding:4px 6px; flex:none;}
+  .roster-edit:hover{color:var(--amber);}
+  .empty-state{
+    text-align:center; padding:30px 10px; color:var(--muted); font-size:13px; font-family:var(--body);
+  }
+
+  .notok-card{
+    background:rgba(229,72,77,0.08); border:1px solid rgba(229,72,77,0.35); border-radius:8px;
+    padding:12px; margin-bottom:8px;
+  }
+  .notok-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .notok-name{font-weight:700; font-size:13.5px; color:var(--text);}
+  .notok-flag{
+    font-family:var(--mono); font-size:10px; font-weight:700; color:var(--bad);
+    background:rgba(229,72,77,0.18); padding:3px 8px; border-radius:5px; letter-spacing:0.5px;
+  }
+  .notok-brand{font-size:11.5px; color:var(--muted); margin-top:3px;}
+  .notok-reason{font-size:12.5px; color:var(--text); margin-top:5px; font-style:italic; line-height:1.4;}
+  .notok-reason.missing{color:var(--bad); font-style:normal;}
+  .notok-photos{display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;}
+  .notok-photos img{width:52px; height:52px; object-fit:cover; border-radius:6px; border:1px solid var(--line);}
+  .notok-clean{
+    text-align:center; padding:22px 10px; color:var(--ok); font-size:13px; font-weight:600;
+    background:rgba(76,195,138,0.08); border:1px solid rgba(76,195,138,0.3); border-radius:8px;
+  }
+
+  .tab-row{display:flex; gap:0; margin:0 18px 6px; border-radius:8px; overflow:hidden; border:1px solid var(--line);}
+  .tab{flex:1; text-align:center; padding:10px; font-family:var(--disp); font-size:12.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); cursor:pointer; background:var(--panel);}
+  .tab.active{background:var(--amber); color:#1a1408;}
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .detail-overlay{
+    position:fixed; inset:0; background:rgba(10,12,16,0.92); z-index:50; display:none;
+    padding:20px 18px; overflow-y:auto;
+  }
+  .detail-overlay.show{display:block;}
+  .detail-close{
+    position:absolute; top:16px; right:18px; background:var(--panel); border:1px solid var(--line);
+    color:var(--text); width:34px; height:34px; border-radius:50%; font-size:18px; cursor:pointer;
+  }
+  .detail-box{max-width:480px; margin:40px auto 0;}
+  .detail-box h3{font-family:var(--disp); text-transform:uppercase; letter-spacing:1px; color:var(--amber); font-size:16px;}
+  .detail-line{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .detail-line .k{color:var(--muted);}
+  .detail-status{font-family:var(--mono); font-weight:700; font-size:11px;}
+  .detail-status.OK{color:var(--ok);}
+  .detail-status.BAD{color:var(--bad);}
+  .detail-status.NA{color:var(--na);}
+
+  /* LOGIN */
+  .login-overlay{
+    position:fixed; inset:0; background:var(--bg); z-index:100;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    background-image: repeating-linear-gradient(135deg, rgba(245,166,35,0.025) 0px, rgba(245,166,35,0.025) 2px, transparent 2px, transparent 14px);
+  }
+  .login-box{max-width:340px; width:100%; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:30px 24px; text-align:center;}
+  .login-title{font-family:var(--disp); font-weight:700; font-size:22px; letter-spacing:0.5px; text-transform:uppercase; color:var(--text);}
+  .login-title span{color:var(--amber);}
+  .login-sub{font-family:var(--mono); font-size:10.5px; color:var(--muted); letter-spacing:1px; margin-top:8px;}
+  .login-box .field{margin-top:18px; text-align:left;}
+  .login-box .btn{width:100%; margin-top:10px;}
+  .login-error{color:var(--bad); font-size:12px; margin-top:8px; display:none;}
+  .role-indicator{cursor:pointer; text-decoration:underline; text-underline-offset:2px;}
+
+  /* QR SCAN */
+  .qr-scan-row{display:flex; gap:8px;}
+  .qr-scan-row input{flex:1;}
+  .qr-scan-btn{
+    flex:0 0 auto; background:var(--amber); color:#1a1408; border:none; border-radius:6px;
+    padding:0 14px; font-family:var(--disp); font-size:12px; font-weight:600; letter-spacing:0.5px;
+    text-transform:uppercase; cursor:pointer; display:flex; align-items:center; gap:6px;
+  }
+  .qr-scan-btn svg{width:16px; height:16px;}
+  .qr-overlay{
+    position:fixed; inset:0; background:rgba(10,12,16,0.95); z-index:110;
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .qr-overlay.show{display:flex;}
+  .qr-box{max-width:380px; width:100%; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; text-align:center; position:relative;}
+  .qr-video-wrap{position:relative; margin-top:14px; border-radius:8px; overflow:hidden; background:#000;}
+  .qr-video-wrap video{width:100%; display:block;}
+  .qr-reticle{
+    position:absolute; inset:15%; border:2px solid var(--amber); border-radius:10px; pointer-events:none;
+    box-shadow:0 0 0 999px rgba(0,0,0,0.35);
+  }
+  .qr-status{font-size:12px; color:var(--muted); margin-top:12px; min-height:16px;}
+  .qr-manual-toggle{background:none; border:none; color:var(--amber); font-family:var(--mono); font-size:11px; text-decoration:underline; cursor:pointer; margin-top:14px;}
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-title">END TRIP <span>CHECKLIST</span></div>
+    <div class="login-sub">Select how you'd like to log in</div>
+
+    <div id="loginChoice">
+      <button class="btn btn-primary" id="loginDriverBtn">Log In</button>
+      <button class="btn btn-ghost" id="loginAdminBtn" style="flex:none;">Admin Log In</button>
+    </div>
+
+    <div id="loginAdminForm" style="display:none;">
+      <div class="field">
+        <label>Admin Password</label>
+        <input type="password" id="adminPasswordInput" placeholder="Enter password">
+      </div>
+      <div class="login-error" id="loginError">Incorrect password</div>
+      <button class="btn btn-primary" id="adminSubmitBtn">Log In as Admin</button>
+      <button class="btn btn-ghost" id="adminBackBtn" style="flex:none;">Back</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+
+  <div class="dash">
+    <div class="dash-top">
+      <div class="dash-title">END TRIP <span>CHECKLIST</span></div>
+      <div style="text-align:right;">
+        <div class="dash-sub" id="clock"></div>
+        <div class="dash-sub role-indicator" id="roleIndicator" style="margin-top:2px;"></div>
+      </div>
+    </div>
+    <div class="odometer">
+      <div>
+        <div class="odo-label">Items Cleared</div>
+        <div class="odo-digits"><span id="odoCurrent">00</span><span class="slash">/</span><span id="odoTotal">18</span></div>
+      </div>
+      <div style="text-align:right;">
+        <div class="odo-label">Flagged</div>
+        <div class="odo-digits" style="color:var(--bad); font-size:20px;" id="odoFlagged">00</div>
+      </div>
+    </div>
+    <div class="odo-bar"><div class="odo-bar-fill" id="odoBar"></div></div>
+  </div>
+
+  <div class="tab-row">
+    <div class="tab active" data-tab="checklist">Checklist</div>
+    <div class="tab" data-tab="roster">Roster</div>
+    <div class="tab" data-tab="summary">Summary</div>
+    <div class="tab" data-tab="occurence">Occurence</div>
+    <div class="tab" data-tab="history">History</div>
+  </div>
+
+  <!-- ===================== CHECKLIST VIEW ===================== -->
+  <div class="view active" id="view-checklist">
+
+    <div class="meta">
+      <div class="field full">
+        <label>Inspected By</label>
+        <div class="qr-scan-row">
+          <input type="text" id="inspectedBy" placeholder="Scan QR code">
+          <button type="button" class="qr-scan-btn" id="scanQRBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M17 20h3v-3"/></svg>
+            Scan
+          </button>
+        </div>
+      </div>
+      <div class="field full">
+        <label>Parking Location</label>
+        <select id="parking">
+          <option value="">Select parking</option>
+          <option>SOC 8</option>
+          <option>SOC 5 EP</option>
+          <option>SOC 11</option>
+          <option>SOC 6</option>
+          <option>SOC 6 EP</option>
+          <option>FM</option>
+          <option>BOCAUE</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label>Truck Plate No.</label>
+        <select id="plate" disabled>
+          <option value="">Select parking location first</option>
+        </select>
+        <input type="text" id="plateOther" placeholder="Enter plate number" style="display:none; margin-top:8px;">
+      </div>
+      <div class="field full">
+        <label>Odometer Reading (KM)</label>
+        <input type="number" id="odometerInput" inputmode="numeric" min="0" placeholder="e.g. 128450">
+      </div>
+      <div class="field">
+        <label>Driver Name</label>
+        <input type="text" id="driver" placeholder="Full name">
+      </div>
+      <div class="field">
+        <label>Agency</label>
+        <select id="agency">
+          <option value="">Select agency</option>
+        </select>
+        <input type="text" id="agencyOther" placeholder="Enter agency name" style="display:none; margin-top:8px;">
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Vehicle Inspection</h2>
+        <div class="count" id="inspCount">0/18</div>
+      </div>
+      <div id="inspectionList"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Tools On Board</h2>
+        <div class="count" id="toolCount">0/7</div>
+      </div>
+      <div class="tool-grid" id="toolList"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Remarks / Findings</h2>
+      </div>
+      <textarea id="remarks" placeholder="Note any damages, missing items, or issues found..."></textarea>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="bar" style="background:var(--bad);"></div>
+        <h2 style="color:var(--bad);">Not OK Summary</h2>
+        <div class="count" id="notOkCount">0 items</div>
+      </div>
+      <button id="emailIssueBtn" class="btn" style="display:none; width:100%; background:var(--bad); color:#fff; margin-bottom:10px;">✉ Email Issue Report to Adrian</button>
+      <div id="notOkSummary"></div>
+    </div>
+
+  </div>
+
+  <!-- ===================== ROSTER VIEW ===================== -->
+  <div class="view" id="view-roster">
+
+    <div class="section" style="padding-top:16px;">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2 id="rosterFormTitle">Add Truck</h2>
+      </div>
+      <div class="meta" style="padding:0; margin-bottom:10px;">
+        <div class="field full">
+          <label>Truck Plate No.</label>
+          <input type="text" id="rosterPlateInput" placeholder="e.g. ABC 1234" autocapitalize="characters">
+        </div>
+        <div class="field full">
+          <label>Parking Location</label>
+          <select id="rosterParkingInput">
+            <option value="">Select parking</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button id="rosterSaveBtn" class="btn btn-primary" style="flex:1;">Add To Roster</button>
+        <button id="rosterCancelBtn" class="btn btn-ghost" style="display:none;">Cancel</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Truck Bulk Upload</h2>
+      </div>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px; line-height:1.5;">
+        One truck per line: <span style="color:var(--text); font-family:var(--mono);">PLATE, PARKING LOCATION</span><br>
+        Existing plates get updated; new plates get added.
+      </div>
+      <textarea id="rosterBulkInput" style="min-height:100px;" placeholder="ABC 1234, SOC 8&#10;XYZ 5678, BOCAUE"></textarea>
+      <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+        <label class="btn btn-ghost" style="flex:0 0 auto; text-align:center; cursor:pointer;">
+          Choose File
+          <input type="file" id="rosterFileInput" accept=".csv,.txt" style="display:none;">
+        </label>
+        <button id="rosterImportBtn" class="btn btn-primary" style="flex:1;">Import</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Truck Roster</h2>
+        <div class="count" id="rosterCount">0 trucks</div>
+      </div>
+      <div class="history-list" id="rosterList"></div>
+    </div>
+
+    <div class="section" style="border-top:1px solid var(--line); padding-top:22px; margin-top:8px;">
+      <div class="section-head">
+        <div class="bar" style="background:var(--amber);"></div>
+        <h2 id="agencyFormTitle">Add Agency</h2>
+      </div>
+      <div class="meta" style="padding:0; margin-bottom:10px;">
+        <div class="field full">
+          <label>Agency Name</label>
+          <input type="text" id="agencyRosterInput" placeholder="e.g. ABC Logistics">
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button id="agencyRosterSaveBtn" class="btn btn-primary" style="flex:1;">Add Agency</button>
+        <button id="agencyRosterCancelBtn" class="btn btn-ghost" style="display:none;">Cancel</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Agency Bulk Upload</h2>
+      </div>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px; line-height:1.5;">
+        One agency per line.
+      </div>
+      <textarea id="agencyBulkInput" style="min-height:80px;" placeholder="ABC Logistics&#10;XYZ Freight"></textarea>
+      <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+        <label class="btn btn-ghost" style="flex:0 0 auto; text-align:center; cursor:pointer;">
+          Choose File
+          <input type="file" id="agencyFileInput" accept=".csv,.txt" style="display:none;">
+        </label>
+        <button id="agencyImportBtn" class="btn btn-primary" style="flex:1;">Import</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Agency Roster</h2>
+        <div class="count" id="agencyCount">0 agencies</div>
+      </div>
+      <div class="history-list" id="agencyList"></div>
+    </div>
+
+    <div class="section" style="border-top:1px solid var(--line); padding-top:22px; margin-top:8px;">
+      <div class="section-head">
+        <div class="bar" style="background:var(--amber);"></div>
+        <h2 id="mechanicFormTitle">Add Mechanic / Support</h2>
+      </div>
+      <div class="meta" style="padding:0; margin-bottom:10px;">
+        <div class="field full">
+          <label>Mechanic / Support Name</label>
+          <input type="text" id="mechanicNameInput" placeholder="e.g. Juan Dela Cruz">
+        </div>
+        <div class="field full">
+          <label>Ops ID</label>
+          <input type="text" id="mechanicOpsIdInput" placeholder="e.g. OPS-0042" autocapitalize="characters">
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button id="mechanicSaveBtn" class="btn btn-primary" style="flex:1;">Add To Roster</button>
+        <button id="mechanicCancelBtn" class="btn btn-ghost" style="display:none;">Cancel</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Mechanic / Support Bulk Upload</h2>
+      </div>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px; line-height:1.5;">
+        One person per line: <span style="color:var(--text); font-family:var(--mono);">NAME, OPS ID</span><br>
+        Existing Ops IDs get updated; new ones get added.
+      </div>
+      <textarea id="mechanicBulkInput" style="min-height:100px;" placeholder="Juan Dela Cruz, OPS-0042&#10;Maria Santos, OPS-0043"></textarea>
+      <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+        <label class="btn btn-ghost" style="flex:0 0 auto; text-align:center; cursor:pointer;">
+          Choose File
+          <input type="file" id="mechanicFileInput" accept=".csv,.txt" style="display:none;">
+        </label>
+        <button id="mechanicImportBtn" class="btn btn-primary" style="flex:1;">Import</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Mechanic / Support Roster</h2>
+        <div class="count" id="mechanicCount">0 people</div>
+      </div>
+      <div class="history-list" id="mechanicList"></div>
+    </div>
+
+  </div>
+
+  <!-- ===================== SUMMARY VIEW ===================== -->
+  <div class="view" id="view-summary">
+    <div class="section" style="padding-top:16px;">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Checklist Summary</h2>
+        <div class="count" id="summaryDate"></div>
+      </div>
+      <div class="meta" style="padding:0 0 14px; grid-template-columns:1fr auto;">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="summaryDateInput">
+        </div>
+        <div class="field" style="align-self:end;">
+          <button class="btn btn-ghost" id="summaryTodayBtn" style="height:41px;">Today</button>
+        </div>
+      </div>
+      <div id="summaryList"></div>
+    </div>
+  </div>
+
+  <!-- ===================== OCCURENCE VIEW ===================== -->
+  <div class="view" id="view-occurence">
+    <div class="section" style="padding-top:16px;">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Top 5 Drivers — Flagged</h2>
+        <div class="count">All Time</div>
+      </div>
+      <div id="topDriversList"></div>
+    </div>
+
+    <div class="section" style="padding-top:8px;">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Top 5 Agencies — Flagged</h2>
+        <div class="count">All Time</div>
+      </div>
+      <div id="topAgenciesList"></div>
+    </div>
+  </div>
+
+  <!-- ===================== HISTORY VIEW ===================== -->
+  <div class="view" id="view-history">
+    <div class="section" style="padding-top:16px;">
+      <div class="meta" style="padding:0 0 14px; grid-template-columns:1fr 1fr;">
+        <div class="field">
+          <label>Plate #</label>
+          <select id="historyPlateFilter">
+            <option value="">All Plates</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="historyDateFilter">
+        </div>
+        <div class="field" style="align-self:end;">
+          <button class="btn btn-ghost" id="historyClearBtn" style="width:100%; height:41px;">Clear Filters</button>
+        </div>
+        <div class="field" style="align-self:end;">
+          <button class="btn btn-primary" id="historyDownloadBtn" style="width:100%; height:41px;">⬇ Download CSV</button>
+        </div>
+      </div>
+      <div class="count" id="historyResultCount" style="margin-bottom:10px;"></div>
+      <div class="history-list" id="historyList"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="action-bar">
+  <div class="action-inner">
+    <button class="btn btn-ghost" id="resetBtn">Reset</button>
+    <button class="btn btn-primary" id="saveBtn">Save &amp; Submit</button>
+  </div>
+</div>
+
+<div class="toast" id="toast">Checklist saved</div>
+
+<div class="detail-overlay" id="detailOverlay">
+  <button class="detail-close" id="detailClose">✕</button>
+  <div class="detail-box" id="detailBox"></div>
+</div>
+
+<div class="qr-overlay" id="qrOverlay">
+  <div class="qr-box">
+    <button class="detail-close" id="qrCloseBtn">✕</button>
+    <div class="login-title" style="font-size:16px;">SCAN QR CODE</div>
+    <div class="login-sub">Point the camera at the inspector's QR code</div>
+    <div class="qr-video-wrap">
+      <video id="qrVideo" playsinline muted autoplay></video>
+      <div class="qr-reticle"></div>
+    </div>
+    <div class="qr-status" id="qrStatus">Requesting camera access…</div>
+    <button type="button" class="qr-manual-toggle" id="qrManualToggle">Type name instead</button>
+  </div>
+</div>
+<canvas id="qrCanvas" style="display:none;"></canvas>
+
+<script>
+(function(){
+
+  // =========================================================
+  // EMAILJS CONFIG — fill these 3 in from your EmailJS dashboard
+  // (Account > API Keys, and Email Services / Email Templates)
+  // Until all 3 are filled in, the app falls back to opening a
+  // mailto draft instead of sending automatically.
+  //
+  // To have NOT OK photos attached to the automatic email, open your
+  // template in the EmailJS dashboard, go to the Attachments tab, and
+  // add MAX_EMAIL_ATTACHMENTS (below) separate "Variable Attachment"
+  // fields named photo1, photo2, photo3... matching that count, each
+  // with Content type "JPEG". (Optional: set each one's Filename field
+  // to a dynamic variable like {{photo1_name}} so attachments show up
+  // named after the item instead of photo1.jpg, photo2.jpg, etc.)
+  // A mailto fallback draft can never include attachments — that's an
+  // email-client limitation, not something this app can work around.
+  // =========================================================
+  var EMAILJS_PUBLIC_KEY  = 'YOUR_EMAILJS_PUBLIC_KEY';
+  var EMAILJS_SERVICE_ID  = 'YOUR_EMAILJS_SERVICE_ID';
+  var EMAILJS_TEMPLATE_ID = 'YOUR_EMAILJS_TEMPLATE_ID';
+  var MAX_EMAIL_ATTACHMENTS = 6;
+
+  function emailjsConfigured(){
+    return EMAILJS_PUBLIC_KEY.indexOf('YOUR_') !== 0 &&
+           EMAILJS_SERVICE_ID.indexOf('YOUR_') !== 0 &&
+           EMAILJS_TEMPLATE_ID.indexOf('YOUR_') !== 0;
+  }
+
+  if(window.emailjs && emailjsConfigured()){
+    try{ emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); }
+    catch(e){ console.error('EmailJS init failed', e); }
+  }
+
+  // ---- Storage abstraction ----
+  // Priority order: Firestore (if FIREBASE_CONFIG below has been filled in —
+  // this is what makes data shared across every device/browser regardless
+  // of hosting, e.g. GitHub Pages) -> window.storage (only exists when this
+  // page is rendered as a live Claude artifact) -> in-memory fallback so the
+  // app never crashes even with neither available (data just won't persist
+  // or sync in that case).
+  var usingFallbackStorage = false;
+  var usingFirestore = false;
+
+  function firebaseConfigured(){
+    return !!(window.FIREBASE_CONFIG &&
+      FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('PASTE_') !== 0 &&
+      FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.projectId.indexOf('PASTE_') !== 0);
+  }
+
+  var storageAPI = (function(){
+    if(typeof firebase !== 'undefined' && firebaseConfigured()){
+      try{
+        firebase.initializeApp(FIREBASE_CONFIG);
+        var db = firebase.firestore();
+        usingFirestore = true;
+        var COLLECTION = 'app_data';
+        function docIdFor(key, shared){ return (shared ? 'shared__' : 'p__') + key; }
+
+        return {
+          get: async function(key, shared){
+            var snap = await db.collection(COLLECTION).doc(docIdFor(key, shared)).get();
+            if(!snap.exists) throw new Error('key not found: ' + key);
+            var data = snap.data();
+            return {key: key, value: data.value, shared: !!shared};
+          },
+          set: async function(key, value, shared){
+            await db.collection(COLLECTION).doc(docIdFor(key, shared)).set({
+              value: value,
+              shared: !!shared,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            return {key: key, value: value, shared: !!shared};
+          },
+          delete: async function(key, shared){
+            await db.collection(COLLECTION).doc(docIdFor(key, shared)).delete();
+            return {key: key, deleted: true, shared: !!shared};
+          },
+          list: async function(prefix, shared){
+            prefix = prefix || '';
+            var wantShared = !!shared;
+            var base = wantShared ? 'shared__' : 'p__';
+            var start = base + prefix;
+            var end = start + '\uf8ff';
+            var snap = await db.collection(COLLECTION)
+              .where(firebase.firestore.FieldPath.documentId(), '>=', start)
+              .where(firebase.firestore.FieldPath.documentId(), '<=', end)
+              .get();
+            var keys = [];
+            snap.forEach(function(doc){ keys.push(doc.id.slice(base.length)); });
+            return {keys: keys, prefix: prefix, shared: wantShared};
+          }
+        };
+      }catch(e){
+        console.error('Firestore init failed, falling back', e);
+      }
+    }
+
+    if(window.storage && typeof window.storage.get === 'function'){
+      return window.storage;
+    }
+
+    usingFallbackStorage = true;
+    var mem = {};
+    function keyFor(key, shared){ return (shared ? 'shared:' : 'p:') + key; }
+    return {
+      get: async function(key, shared){
+        var k = keyFor(key, shared);
+        if(!(k in mem)) throw new Error('key not found: ' + key);
+        return {key: key, value: mem[k], shared: !!shared};
+      },
+      set: async function(key, value, shared){
+        mem[keyFor(key, shared)] = value;
+        return {key: key, value: value, shared: !!shared};
+      },
+      delete: async function(key, shared){
+        delete mem[keyFor(key, shared)];
+        return {key: key, deleted: true, shared: !!shared};
+      },
+      list: async function(prefix, shared){
+        prefix = prefix || '';
+        var wantShared = !!shared;
+        var keys = Object.keys(mem).filter(function(k){
+          var isShared = k.indexOf('shared:') === 0;
+          var rawKey = k.slice(k.indexOf(':') + 1);
+          return isShared === wantShared && rawKey.indexOf(prefix) === 0;
+        }).map(function(k){ return k.slice(k.indexOf(':') + 1); });
+        return {keys: keys, prefix: prefix, shared: wantShared};
+      }
+    };
+  })();
+
+  if(usingFallbackStorage){
+    console.warn('No Firebase config found and no window.storage available — using in-memory storage. Data will NOT persist or sync across devices. Fill in FIREBASE_CONFIG near the top of this file.');
+  }
+
+  var INSPECTION_ITEMS = [
+    "ELECTRICALS","ENGINE","FUEL GAUGE","AIRCON","BODY DAMAGES","BRAKE SYSTEM",
+    "TRANSMISSION","DASHBOARD INDICATOR LIGHT","TIRES","BATTERY","LEAKAGES",
+    "SPARE TIRE","CAR CHARGER","DASHCAM","FIRE EXTINGUISER","LASHING BELTS (10W)",
+    "DIESEL TANK CAP","STICKERS"
+  ];
+
+  var TOOLS = ["Tie Wrench","Jack","Solid Bar","EWD","Pipe","Extension","Tire Chock/Kalso"];
+
+  var PARKING_LOCATIONS = ["SOC 8","SOC 5 EP","SOC 11","SOC 6","SOC 6 EP","FM","BOCAUE"];
+
+  var TIRE_BRANDS = ["Gajah Tunggal","Yokohama","Giti","GT Radial","Good Year","Triangle","Double Star","Bridgestone","Chao Yang"];
+  var BATTERY_BRANDS = ["Motolite","Chloride","Amaron","Century","Tuflong"];
+
+  // For these items, NOT OK reason is chosen from a fixed dropdown instead of free text.
+  var REASON_OPTIONS = {
+    "BODY DAMAGES": ["Damaged - Accident","Damaged - Non-Accident"],
+    "TIRES": ["Worn Out","Replaced by other Brand"],
+    "BATTERY": ["Low Battery","Damaged","Replaced by other Brand"],
+    "SPARE TIRE": ["Missing","Replaced (Tires and Mags)"],
+    "DIESEL TANK CAP": ["Missing","Damaged","Damaged/Tampered Drain Plug"]
+  };
+
+  // These items always require a photo, even when marked OK.
+  var ALWAYS_PHOTO_ITEMS = ["BODY DAMAGES","BATTERY","TIRES","SPARE TIRE","DIESEL TANK CAP"];
+
+  // Body Damages needs 4 separate angle shots instead of one photo.
+  var BODY_DAMAGE_ANGLES = ["FRONT","LEFT","RIGHT","BACK"];
+
+  // Diesel Tank Cap needs a shot of the cap itself plus the drain plug.
+  var DIESEL_TANK_ANGLES = ["CAP","DRAIN PLUG"];
+
+  // If any of these are marked NOT OK, an issue report email must go out.
+  var CRITICAL_EMAIL_ITEMS = ["BODY DAMAGES","TIRES","BATTERY","SPARE TIRE","DIESEL TANK CAP"];
+  var ISSUE_EMAIL_TO = "adrian.padugar@spxexpress.com,justine.palermo@spxexpress.com,william.villanueva@spxexpress.com";
+
+  function pad2(n){ return String(n).padStart(2,'0'); }
+
+  function formatSubjectDate(d){
+    return pad2(d.getMonth()+1) + '/' + pad2(d.getDate()) + '/' + d.getFullYear();
+  }
+  function formatSubjectTime(d){
+    var h = d.getHours();
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    var h12 = h % 12; if(h12 === 0) h12 = 12;
+    return pad2(h12) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()) + ' ' + ampm;
+  }
+
+  function sanitizeFilename(s){
+    return String(s).replace(/[^A-Za-z0-9_.-]+/g, '_').replace(/_+/g, '_');
+  }
+
+  // Builds the mailto subject/body from live or saved form data.
+  function buildIssueEmailPayload(plate, inspectedBy, driver, parking, inspection, remarks, when){
+    var flagged = CRITICAL_EMAIL_ITEMS.filter(function(n){
+      return inspection[n] && inspection[n].status === 'BAD';
+    });
+    if(!flagged.length) return null;
+
+    var issuesText = flagged.map(function(name){
+      var it = inspection[name];
+      var brandTxt = it.brand ? ' (' + it.brand + ')' : '';
+      var reasonTxt = (it.reason && it.reason.trim()) ? ' — ' + it.reason.trim() : ' — no reason entered';
+      return name + brandTxt + reasonTxt;
+    }).join('\n  ');
+
+    // Gather photos from the flagged items only, in order, capped at
+    // MAX_EMAIL_ATTACHMENTS (that's how many attachment slots the
+    // EmailJS template can be configured with — see the config notes above).
+    var photos = [];
+    var totalPhotoCount = 0;
+    flagged.forEach(function(name){
+      var it = inspection[name];
+      var photoKeys = Object.keys(it.photos || {});
+      totalPhotoCount += photoKeys.length;
+      photoKeys.forEach(function(k){
+        if(photos.length >= MAX_EMAIL_ATTACHMENTS) return;
+        var base = (plate || 'TRUCK') + '_' + name + (photoKeys.length > 1 ? '_' + k : '');
+        photos.push({
+          filename: sanitizeFilename(base) + '.jpg',
+          data: it.photos[k]
+        });
+      });
+    });
+    var overflowCount = Math.max(0, totalPhotoCount - photos.length);
+
+    var subject = 'ISSUE PLATE # ' + (plate || 'UNKNOWN') + ' ' + formatSubjectDate(when) + ' ' + formatSubjectTime(when);
+    var body =
+      'Plate #: ' + (plate || '') + '\n' +
+      'Inspected By: ' + (inspectedBy || '') + '\n' +
+      'Driver Name: ' + (driver || '') + '\n' +
+      'Parking: ' + (parking || '') + '\n' +
+      'Flagged Issue:\n  ' + issuesText + '\n\n' +
+      (remarks ? ('Remarks: ' + remarks + '\n\n') : '') +
+      (photos.length
+        ? ('Photos: ' + photos.length + ' attached' + (overflowCount ? (', +' + overflowCount + ' more in the app') : '') + '.\n')
+        : '') +
+      'Note: geo-tagged photos for these items are saved in the checklist app — open the entry in History to view them.';
+
+    return {
+      subject: subject,
+      body: body,
+      flagged: flagged,
+      plate: plate || '',
+      driver: driver || '',
+      parking: parking || '',
+      issuesText: issuesText,
+      remarks: remarks || '',
+      photos: photos
+    };
+  }
+
+  function openMailtoFallback(payload){
+    var url = 'mailto:' + ISSUE_EMAIL_TO +
+      '?subject=' + encodeURIComponent(payload.subject) +
+      '&body=' + encodeURIComponent(payload.body);
+    window.open(url, '_blank');
+  }
+
+  // Sends the issue report. Uses EmailJS for true automatic sending when
+  // configured; otherwise (or on failure) falls back to a mailto draft so
+  // the report always gets out one way or another.
+  async function sendIssueEmail(payload){
+    if(!payload) return {sent:false, skipped:true};
+
+    if(window.emailjs && emailjsConfigured()){
+      try{
+        var emailParams = {
+          to_email: ISSUE_EMAIL_TO,
+          subject: payload.subject,
+          message: payload.body,
+          plate: payload.plate,
+          driver: payload.driver,
+          parking: payload.parking,
+          flagged_issues: payload.issuesText,
+          remarks: payload.remarks
+        };
+        // photo1/photo1_name .. photoN/photoN_name — one pair per attachment
+        // slot configured in the EmailJS template (see config notes above).
+        for(var i=0;i<MAX_EMAIL_ATTACHMENTS;i++){
+          var p = payload.photos[i];
+          emailParams['photo' + (i+1)] = p ? p.data : '';
+          emailParams['photo' + (i+1) + '_name'] = p ? p.filename : '';
+        }
+        await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParams);
+        return {sent:true, mode:'auto'};
+      }catch(e){
+        console.error('EmailJS send failed', e);
+        openMailtoFallback(payload);
+        return {sent:false, mode:'mailto-fallback', error:e};
+      }
+    }
+
+    openMailtoFallback(payload);
+    return {sent:false, mode:'mailto-fallback', notConfigured:true};
+  }
+
+  var state = {
+    inspection: {},   // name -> {status: 'OK'|'BAD'|'NA', brand: optional, photos: {key: dataURL}}
+    tools: {}         // name -> bool
+  };
+
+  var checkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="#1a1408" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  var cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+
+  function requiredPhotoKeys(name, status){
+    if(name === 'BODY DAMAGES'){
+      return (status === 'OK' || status === 'BAD') ? BODY_DAMAGE_ANGLES.slice() : [];
+    }
+    if(name === 'DIESEL TANK CAP'){
+      return (status === 'OK' || status === 'BAD') ? DIESEL_TANK_ANGLES.slice() : [];
+    }
+    if(ALWAYS_PHOTO_ITEMS.indexOf(name) !== -1 && (status === 'OK' || status === 'BAD')) return ['PHOTO'];
+    return [];
+  }
+
+  // ---- Geolocation + reverse geocoding ----
+  function getGeoStamp(){
+    return new Promise(function(resolve){
+      if(!navigator.geolocation){ resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(async function(pos){
+        var lat = pos.coords.latitude.toFixed(6);
+        var lon = pos.coords.longitude.toFixed(6);
+        var address = '';
+        try{
+          var res = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat='+lat+'&lon='+lon+'&zoom=18&addressdetails=1');
+          var data = await res.json();
+          address = (data && data.display_name) ? data.display_name : '';
+        }catch(e){ /* offline or blocked - lat/long stamp still applies */ }
+        resolve({lat: lat, lon: lon, address: address});
+      }, function(){
+        resolve(null);
+      }, {enableHighAccuracy:true, timeout:8000, maximumAge:60000});
+    });
+  }
+
+  function wrapTextLine(ctx, text, maxWidth){
+    var words = text.split(' ');
+    var lines = [];
+    var current = '';
+    words.forEach(function(word){
+      var test = current ? current + ' ' + word : word;
+      if(ctx.measureText(test).width > maxWidth && current){
+        lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    });
+    if(current) lines.push(current);
+    return lines;
+  }
+
+  function drawGeoStamp(ctx, w, h, geo, manualAddress){
+    var now = new Date();
+    var dateStr = now.toLocaleString('en-US', {month:'short', day:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+    var fontSize = Math.max(12, Math.round(w * 0.032));
+    ctx.font = fontSize + 'px monospace';
+
+    var lines = [];
+    if(geo){
+      lines.push('LAT ' + geo.lat + '   LONG ' + geo.lon);
+      var addr = geo.address || manualAddress;
+      if(addr) lines = lines.concat(wrapTextLine(ctx, addr, w - 26));
+    } else if(manualAddress){
+      lines.push('LOCATION UNAVAILABLE (GPS)');
+      lines = lines.concat(wrapTextLine(ctx, manualAddress, w - 26));
+    } else {
+      lines.push('LOCATION UNAVAILABLE');
+    }
+    lines.push(dateStr);
+
+    var lineHeight = Math.round(fontSize * 1.4);
+    var boxHeight = lines.length * lineHeight + 16;
+
+    ctx.fillStyle = 'rgba(10,12,16,0.68)';
+    ctx.fillRect(0, h - boxHeight, w, boxHeight);
+    ctx.fillStyle = '#f5a623';
+    ctx.fillRect(0, h - boxHeight, 5, boxHeight);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'top';
+    lines.forEach(function(line, i){
+      ctx.fillText(line, 15, h - boxHeight + 8 + i * lineHeight);
+    });
+  }
+
+  function captureGeoPhoto(file, maxW, quality, manualAddress){
+    return new Promise(function(resolve, reject){
+      try{
+        var geoPromise = getGeoStamp();
+        var reader = new FileReader();
+        reader.onload = function(e){
+          var img = new Image();
+          img.onload = async function(){
+            var scale = Math.min(1, maxW / img.width);
+            var w = Math.round(img.width * scale);
+            var h = Math.round(img.height * scale);
+            var canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            var geo = await geoPromise;
+            drawGeoStamp(ctx, w, h, geo, manualAddress);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = reject;
+          img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      }catch(err){ reject(err); }
+    });
+  }
+
+  function buildInspectionList(){
+    var container = document.getElementById('inspectionList');
+    container.innerHTML = '';
+    INSPECTION_ITEMS.forEach(function(name){
+      state.inspection[name] = state.inspection[name] || {status:null, brand:'', photos:{}, reason:''};
+      var item = document.createElement('div');
+      item.className = 'item';
+
+      var needsBrand = (name === 'TIRES' || name === 'BATTERY');
+      var brandOptions = name === 'TIRES' ? TIRE_BRANDS : (name === 'BATTERY' ? BATTERY_BRANDS : []);
+      var alwaysPhoto = ALWAYS_PHOTO_ITEMS.indexOf(name) !== -1;
+      var hint = name === 'BODY DAMAGES' ? '(4 photos: front, left, right, back)' : (name === 'DIESEL TANK CAP' ? '(2 photos: cap, drain plug)' : (alwaysPhoto ? '(photo required)' : ''));
+
+      item.innerHTML =
+        '<div class="item-top"><div class="item-name">'+name+(hint ? ' <span style="color:var(--muted); font-weight:400; font-size:10px;">'+hint+'</span>' : '')+'</div></div>'+
+        '<div class="status-group">'+
+          '<div class="status-btn ok" data-status="OK">OK</div>'+
+          '<div class="status-btn bad" data-status="BAD">NOT OK</div>'+
+          '<div class="status-btn na" data-status="NA">N/A</div>'+
+        '</div>'+
+        (needsBrand ? '<div class="brand-row"><select data-brand="1"><option value="">Select brand</option>'+
+          brandOptions.map(function(b){return '<option value="'+b+'">'+b+'</option>';}).join('')+
+          '</select></div>' : '') +
+        '<div class="reason-slot"></div>'+
+        '<div class="photo-slot"></div>';
+
+      var btns = item.querySelectorAll('.status-btn');
+      btns.forEach(function(btn){
+        btn.addEventListener('click', function(){
+          state.inspection[name].status = btn.getAttribute('data-status');
+          btns.forEach(function(b){b.classList.remove('active');});
+          btn.classList.add('active');
+          renderReasonSlot(name, item);
+          renderPhotoSlot(name, item);
+          updateOdometer();
+        });
+      });
+
+      if(needsBrand){
+        var sel = item.querySelector('select[data-brand]');
+        sel.addEventListener('change', function(){
+          state.inspection[name].brand = sel.value;
+        });
+      }
+
+      container.appendChild(item);
+      renderReasonSlot(name, item);
+      renderPhotoSlot(name, item);
+    });
+  }
+
+  function renderReasonSlot(name, itemEl){
+    var slot = itemEl.querySelector('.reason-slot');
+    var data = state.inspection[name];
+
+    if(data.status !== 'BAD'){
+      slot.innerHTML = '';
+      return;
+    }
+
+    var options = REASON_OPTIONS[name];
+
+    if(options){
+      slot.innerHTML =
+        '<div class="reason-row">'+
+          '<label class="reason-label">Reason <span style="color:var(--bad);">*</span></label>'+
+          '<select class="reason-input">'+
+            '<option value="">Select reason</option>'+
+            options.map(function(o){
+              return '<option value="'+escapeHtml(o)+'"'+(data.reason===o?' selected':'')+'>'+escapeHtml(o)+'</option>';
+            }).join('')+
+          '</select>'+
+        '</div>';
+
+      var sel = slot.querySelector('.reason-input');
+      sel.addEventListener('change', function(){
+        data.reason = sel.value;
+        renderNotOkSummary();
+      });
+      return;
+    }
+
+    slot.innerHTML =
+      '<div class="reason-row">'+
+        '<label class="reason-label">Reason <span style="color:var(--bad);">*</span></label>'+
+        '<textarea class="reason-input" placeholder="What\'s wrong with '+name.toLowerCase()+'?">'+escapeHtml(data.reason||'')+'</textarea>'+
+      '</div>';
+
+    var input = slot.querySelector('.reason-input');
+    input.addEventListener('input', function(){
+      data.reason = input.value;
+      renderNotOkSummary();
+    });
+  }
+
+  function renderPhotoSlot(name, itemEl){
+    var slot = itemEl.querySelector('.photo-slot');
+    var data = state.inspection[name];
+    var required = requiredPhotoKeys(name, data.status);
+    var existingKeys = Object.keys(data.photos || {});
+
+    if(!required.length && !existingKeys.length){
+      slot.innerHTML = '';
+      return;
+    }
+
+    var keys = required.length ? required : existingKeys;
+    var multi = keys.length > 1;
+    var allSatisfied = keys.every(function(k){ return !!data.photos[k]; });
+
+    var html = '<div class="photo-row">';
+    keys.forEach(function(key){
+      var photo = data.photos[key];
+      html += '<div class="photo-unit">';
+      if(photo){
+        html += '<div class="photo-thumb"><img src="'+photo+'"><button class="photo-remove" data-remove="'+key+'">✕</button></div>';
+      } else {
+        html += '<div class="photo-add-btn missing" data-add="'+key+'">'+cameraIcon+'</div>';
+      }
+      if(multi) html += '<div class="photo-angle-label">'+key+'</div>';
+      html += '</div>';
+    });
+    html += '<span class="photo-required-tag'+(allSatisfied?' satisfied':'')+'" style="align-self:center;">'+(allSatisfied ? 'PHOTOS ADDED' : 'PHOTO REQUIRED')+'</span>';
+    html += '</div>';
+    slot.innerHTML = html;
+
+    slot.querySelectorAll('[data-add]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var key = btn.getAttribute('data-add');
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.capture = 'environment';
+        input.addEventListener('change', async function(){
+          if(!input.files || !input.files[0]) return;
+          btn.innerHTML = '<span style="font-size:9px; font-family:var(--mono);">LOCATING…</span>';
+          try{
+            var dataUrl = await captureGeoPhoto(input.files[0], 760, 0.55, null);
+            data.photos[key] = dataUrl;
+            renderPhotoSlot(name, itemEl);
+            updateOdometer();
+          }catch(e){
+            console.error(e);
+            btn.innerHTML = cameraIcon;
+            showToast('Could not process photo, try again');
+          }
+        });
+        input.click();
+      });
+    });
+
+    slot.querySelectorAll('[data-remove]').forEach(function(btn){
+      btn.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        var key = btn.getAttribute('data-remove');
+        delete data.photos[key];
+        renderPhotoSlot(name, itemEl);
+        updateOdometer();
+      });
+    });
+  }
+
+  function renderNotOkSummary(){
+    var wrap = document.getElementById('notOkSummary');
+    var countEl = document.getElementById('notOkCount');
+    var emailBtn = document.getElementById('emailIssueBtn');
+    var flagged = INSPECTION_ITEMS.filter(function(n){ return state.inspection[n].status === 'BAD'; });
+    var missingTools = TOOLS.filter(function(n){ return !state.tools[n]; });
+    var totalCount = flagged.length + missingTools.length;
+
+    countEl.textContent = totalCount + ' item' + (totalCount === 1 ? '' : 's');
+
+    var criticalFlagged = flagged.filter(function(n){ return CRITICAL_EMAIL_ITEMS.indexOf(n) !== -1; });
+    emailBtn.style.display = criticalFlagged.length ? 'block' : 'none';
+
+    if(!totalCount){
+      wrap.innerHTML = '<div class="notok-clean">No issues flagged — all clear</div>';
+      return;
+    }
+
+    var inspectionHtml = flagged.map(function(name){
+      var it = state.inspection[name];
+      var isCritical = CRITICAL_EMAIL_ITEMS.indexOf(name) !== -1;
+      var photoKeys = Object.keys(it.photos || {});
+      var brandTxt = it.brand ? '<div class="notok-brand">Brand: ' + it.brand + '</div>' : '';
+      var reasonTxt = (it.reason && it.reason.trim())
+        ? '<div class="notok-reason">"' + escapeHtml(it.reason.trim()) + '"</div>'
+        : '<div class="notok-reason missing">No reason entered yet</div>';
+      var photosHtml = photoKeys.length
+        ? '<div class="notok-photos">' + photoKeys.map(function(k){ return '<img src="' + it.photos[k] + '">'; }).join('') + '</div>'
+        : '<div class="notok-brand" style="color:var(--bad);">No photo attached yet</div>';
+      var flagLabel = isCritical ? 'NOT OK · EMAIL' : 'NOT OK';
+      return '<div class="notok-card">'+
+          '<div class="notok-top"><div class="notok-name">'+name+'</div><div class="notok-flag">'+flagLabel+'</div></div>'+
+          brandTxt + reasonTxt + photosHtml +
+        '</div>';
+    }).join('');
+
+    var toolsHtml = missingTools.map(function(name){
+      return '<div class="notok-card">'+
+          '<div class="notok-top"><div class="notok-name">'+name+'</div><div class="notok-flag">MISSING</div></div>'+
+          '<div class="notok-reason missing">Not present on truck</div>'+
+        '</div>';
+    }).join('');
+
+    wrap.innerHTML = inspectionHtml + toolsHtml;
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  // ---------- CSV / FILE DOWNLOAD HELPERS ----------
+  function csvEscape(v){
+    var s = (v === null || v === undefined) ? '' : String(v);
+    if(/[",\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  function rowsToCsv(rows){
+    return rows.map(function(row){ return row.map(csvEscape).join(','); }).join('\r\n');
+  }
+  function downloadTextFile(filename, content, mime){
+    var blob = new Blob([content], {type: (mime || 'text/csv') + ';charset=utf-8;'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+  function sanitizeFileSlug(s){
+    return String(s || '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+  }
+
+  function buildToolsList(){
+    var container = document.getElementById('toolList');
+    container.innerHTML = '';
+    TOOLS.forEach(function(name){
+      state.tools[name] = state.tools[name] || false;
+      var el = document.createElement('div');
+      el.className = 'tool-item';
+      el.innerHTML = '<div class="tool-check">'+checkIcon+'</div><div class="tool-label">'+name+'</div>';
+      el.addEventListener('click', function(){
+        state.tools[name] = !state.tools[name];
+        el.classList.toggle('checked', state.tools[name]);
+        updateOdometer();
+      });
+      container.appendChild(el);
+    });
+  }
+
+  function updateOdometer(){
+    var total = INSPECTION_ITEMS.length;
+    var cleared = 0, flagged = 0;
+    INSPECTION_ITEMS.forEach(function(name){
+      var s = state.inspection[name].status;
+      if(s) cleared++;
+      if(s === 'BAD') flagged++;
+    });
+    document.getElementById('odoCurrent').textContent = String(cleared).padStart(2,'0');
+    document.getElementById('odoTotal').textContent = total;
+    document.getElementById('odoFlagged').textContent = String(flagged).padStart(2,'0');
+    document.getElementById('odoBar').style.width = Math.round((cleared/total)*100) + '%';
+    document.getElementById('inspCount').textContent = cleared + '/' + total;
+
+    var toolsChecked = Object.values(state.tools).filter(Boolean).length;
+    document.getElementById('toolCount').textContent = toolsChecked + '/' + TOOLS.length;
+
+    renderNotOkSummary();
+  }
+
+  function tick(){
+    var now = new Date();
+    var opts = {month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit'};
+    document.getElementById('clock').textContent = now.toLocaleString('en-US', opts).toUpperCase();
+  }
+  tick(); setInterval(tick, 30000);
+
+  function showToast(msg){
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+
+  function resetForm(){
+    document.getElementById('inspectedBy').value = '';
+    document.getElementById('driver').value = '';
+    document.getElementById('parking').value = '';
+    document.getElementById('remarks').value = '';
+    document.getElementById('plateOther').value = '';
+    document.getElementById('plateOther').style.display = 'none';
+    document.getElementById('odometerInput').value = '';
+    document.getElementById('agency').value = '';
+    document.getElementById('agencyOther').value = '';
+    document.getElementById('agencyOther').style.display = 'none';
+    rebuildPlateOptions();
+    state.inspection = {};
+    state.tools = {};
+    buildInspectionList();
+    buildToolsList();
+    updateOdometer();
+  }
+
+  document.getElementById('resetBtn').addEventListener('click', function(){
+    if(confirm('Clear the current checklist?')) resetForm();
+  });
+
+  document.getElementById('emailIssueBtn').addEventListener('click', async function(){
+    var payload = buildIssueEmailPayload(
+      getPlateValue(),
+      document.getElementById('inspectedBy').value.trim(),
+      document.getElementById('driver').value.trim(),
+      document.getElementById('parking').value,
+      state.inspection,
+      document.getElementById('remarks').value.trim(),
+      new Date()
+    );
+    if(!payload){ showToast('No critical NOT OK items flagged'); return; }
+    showToast('Sending issue email…');
+    var res = await sendIssueEmail(payload);
+    showToast(res.sent ? 'Issue email sent' : 'Opening email draft…');
+  });
+
+  // ---------- SAVE ----------
+  document.getElementById('saveBtn').addEventListener('click', async function(){
+    var plate = getPlateValue();
+    var parking = document.getElementById('parking').value;
+
+    if(!parking){ showToast('Select parking location'); document.getElementById('parking').focus(); return; }
+    if(!plate){ showToast('Select or enter truck plate no.'); document.getElementById('plate').focus(); return; }
+
+    var unchecked = INSPECTION_ITEMS.filter(function(n){ return !state.inspection[n].status; });
+    if(unchecked.length){
+      if(!confirm(unchecked.length + ' item(s) not marked yet. Save anyway?')) return;
+    }
+
+    var missingReasons = INSPECTION_ITEMS.filter(function(n){
+      var it = state.inspection[n];
+      return it.status === 'BAD' && !(it.reason && it.reason.trim());
+    });
+    if(missingReasons.length){
+      showToast('Reason required: ' + missingReasons[0] + (missingReasons.length>1 ? ' (+'+(missingReasons.length-1)+' more)' : ''));
+      return;
+    }
+
+    var missingPhotos = INSPECTION_ITEMS.filter(function(n){
+      var it = state.inspection[n];
+      var need = requiredPhotoKeys(n, it.status);
+      return need.some(function(k){ return !it.photos[k]; });
+    });
+    if(missingPhotos.length){
+      showToast('Photo required: ' + missingPhotos[0] + (missingPhotos.length>1 ? ' (+'+(missingPhotos.length-1)+' more)' : ''));
+      return;
+    }
+
+    var entry = {
+      id: Date.now(),
+      dateISO: new Date().toISOString(),
+      plate: plate,
+      odometer: document.getElementById('odometerInput').value.trim(),
+      inspectedBy: document.getElementById('inspectedBy').value.trim(),
+      driver: document.getElementById('driver').value.trim(),
+      agency: getAgencyValue(),
+      parking: parking,
+      inspection: JSON.parse(JSON.stringify(state.inspection)),
+      tools: JSON.parse(JSON.stringify(state.tools)),
+      remarks: document.getElementById('remarks').value.trim()
+    };
+
+    var entryJson = JSON.stringify(entry);
+    if(entryJson.length > 4500000){
+      var approxMB = (entryJson.length / 1024 / 1024).toFixed(1);
+      showToast('Photos too large (~' + approxMB + 'MB). Remove a photo and retry.');
+      return;
+    }
+
+    var issuePayload = buildIssueEmailPayload(
+      entry.plate, entry.inspectedBy, entry.driver, entry.parking, entry.inspection, entry.remarks, new Date(entry.dateISO)
+    );
+
+    try{
+      var res = await storageAPI.set('checklist:' + entry.id, entryJson, true);
+      if(!res){ showToast('Save failed, try again'); return; }
+      if(issuePayload){
+        var emailRes = await sendIssueEmail(issuePayload);
+        showToast((usingFallbackStorage ? 'Saved (this tab only)' : 'Checklist saved') + (emailRes.sent ? ' — issue email sent' : ' — issue email opened'));
+      } else {
+        showToast(usingFallbackStorage ? 'Saved (this tab only)' : 'Checklist saved ✓');
+      }
+      resetForm();
+      loadHistory();
+    }catch(e){
+      console.error(e);
+      var msg = (e && e.message) ? String(e.message) : 'unknown error';
+      showToast('Save failed: ' + msg.slice(0, 70));
+    }
+  });
+
+  // ---------- LOGIN ----------
+  // This is a lightweight UI gate, not real security: everything here runs in
+  // the browser, so anyone with dev tools could bypass it. It's meant to keep
+  // casual drivers from wandering into the roster, not to protect sensitive data.
+  // Change ADMIN_PASSWORD to whatever you'd like admins to use.
+  var ADMIN_PASSWORD = 'admin123';
+  var isAdmin = false;
+
+  function showLoginOverlay(){
+    document.getElementById('loginOverlay').style.display = 'flex';
+    document.getElementById('loginChoice').style.display = 'block';
+    document.getElementById('loginAdminForm').style.display = 'none';
+    document.getElementById('loginError').style.display = 'none';
+    document.getElementById('adminPasswordInput').value = '';
+  }
+
+  function completeLogin(admin){
+    isAdmin = admin;
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.querySelector('.tab[data-tab="roster"]').style.display = admin ? '' : 'none';
+    document.getElementById('roleIndicator').textContent = (admin ? 'ADMIN' : 'DRIVER') + ' · Log Out';
+    if(!admin && document.getElementById('view-roster').classList.contains('active')){
+      document.querySelector('.tab[data-tab="checklist"]').click();
+    }
+    // Pull the latest shared data the moment someone logs in — a device may
+    // have been sitting on the login screen for a while, so this guarantees
+    // fresh roster/agency data (and whatever tab is showing) rather than
+    // whatever was cached back when the page first loaded.
+    refreshRosterCache();
+    refreshAgencyCache();
+    refreshActiveView();
+  }
+
+  document.getElementById('loginDriverBtn').addEventListener('click', function(){
+    completeLogin(false);
+  });
+
+  document.getElementById('loginAdminBtn').addEventListener('click', function(){
+    document.getElementById('loginChoice').style.display = 'none';
+    document.getElementById('loginAdminForm').style.display = 'block';
+    document.getElementById('adminPasswordInput').focus();
+  });
+
+  document.getElementById('adminBackBtn').addEventListener('click', function(){
+    document.getElementById('loginAdminForm').style.display = 'none';
+    document.getElementById('loginChoice').style.display = 'block';
+  });
+
+  function attemptAdminLogin(){
+    var val = document.getElementById('adminPasswordInput').value;
+    if(val === ADMIN_PASSWORD){
+      completeLogin(true);
+    } else {
+      document.getElementById('loginError').style.display = 'block';
+      document.getElementById('adminPasswordInput').value = '';
+      document.getElementById('adminPasswordInput').focus();
+    }
+  }
+  document.getElementById('adminSubmitBtn').addEventListener('click', attemptAdminLogin);
+  document.getElementById('adminPasswordInput').addEventListener('keydown', function(e){
+    if(e.key === 'Enter') attemptAdminLogin();
+  });
+
+  document.getElementById('roleIndicator').addEventListener('click', function(){
+    showLoginOverlay();
+  });
+
+  // ---------- TABS ----------
+  // Loads whatever data the currently active tab needs. Used both on tab
+  // click and on the background poll below, so a tab left open on another
+  // device eventually picks up changes made elsewhere without the user
+  // having to switch away and back or reload the page.
+  function refreshActiveView(){
+    var activeTab = document.querySelector('.tab.active');
+    if(!activeTab) return;
+    var name = activeTab.getAttribute('data-tab');
+    if(name === 'history') loadHistory();
+    if(name === 'roster' && isAdmin){ loadRosterList(); loadAgencyList(); loadMechanicList(); }
+    if(name === 'summary') loadSummary();
+    if(name === 'occurence'){ loadTopFlaggedDrivers(); loadTopFlaggedAgencies(); }
+  }
+
+  document.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      if(tab.getAttribute('data-tab') === 'roster' && !isAdmin){
+        showToast('Admin access required');
+        return;
+      }
+      document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+      document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active');});
+      tab.classList.add('active');
+      document.getElementById('view-' + tab.getAttribute('data-tab')).classList.add('active');
+      refreshActiveView();
+    });
+  });
+
+  // Background sync poll: even if nobody switches tabs, refresh the roster/
+  // agency dropdown caches (used on the Checklist tab) and whatever tab is
+  // currently on-screen, so admin changes and new submissions made on one
+  // device show up on other devices/tabs that were left open. Kept to a
+  // single storage call per collection (see the batched roster/agency/
+  // mechanic storage above) and a 30s interval to stay well under the
+  // storage backend's rate limit.
+  setInterval(function(){
+    var activeTab = document.querySelector('.tab.active');
+    var activeName = activeTab ? activeTab.getAttribute('data-tab') : '';
+    // Skip the direct calls here when the Roster tab is open — loadRosterList/
+    // loadAgencyList/loadMechanicList (called via refreshActiveView below)
+    // already refresh those same caches, so this avoids doubling the calls.
+    if(activeName !== 'roster'){
+      refreshRosterCache();
+      refreshAgencyCache();
+    }
+    refreshActiveView();
+  }, 30000);
+
+  document.getElementById('summaryDateInput').addEventListener('change', loadSummary);
+  document.getElementById('summaryTodayBtn').addEventListener('click', function(){
+    document.getElementById('summaryDateInput').value = todayInputValue();
+    loadSummary();
+  });
+
+  // ---------- HISTORY ----------
+  var historyEntriesCache = []; // all loaded entries, unfiltered
+
+  async function loadHistory(){
+    var list = document.getElementById('historyList');
+    list.innerHTML = '<div class="empty-state">Loading...</div>';
+    try{
+      var keysRes = await storageAPI.list('checklist:', true);
+      var keys = (keysRes && keysRes.keys) ? keysRes.keys : [];
+      if(!keys.length){
+        historyEntriesCache = [];
+        populateHistoryPlateFilter();
+        list.innerHTML = '<div class="empty-state">No saved checklists yet.<br>Submit one to see it here.</div>';
+        document.getElementById('historyResultCount').textContent = '';
+        return;
+      }
+      var entries = [];
+      for(var i=0;i<keys.length;i++){
+        try{
+          var r = await storageAPI.get(keys[i], true);
+          if(r && r.value) entries.push(JSON.parse(r.value));
+        }catch(e){}
+      }
+      entries.sort(function(a,b){ return b.id - a.id; });
+
+      historyEntriesCache = entries;
+      populateHistoryPlateFilter();
+      renderHistoryList();
+    }catch(e){
+      list.innerHTML = '<div class="empty-state">Could not load history.</div>';
+      console.error(e);
+    }
+  }
+
+  // Builds the plate dropdown from whatever plates actually appear in
+  // the loaded history, so it only ever offers plates with entries.
+  function populateHistoryPlateFilter(){
+    var sel = document.getElementById('historyPlateFilter');
+    var prevValue = sel.value;
+    var plates = [];
+    var seen = {};
+    historyEntriesCache.forEach(function(entry){
+      var p = normalizePlate(entry.plate);
+      if(p && !seen[p]){ seen[p] = true; plates.push(p); }
+    });
+    plates.sort();
+    sel.innerHTML = '<option value="">All Plates</option>' +
+      plates.map(function(p){ return '<option value="'+escapeHtml(p)+'">'+escapeHtml(p)+'</option>'; }).join('');
+    if(prevValue && seen[prevValue]) sel.value = prevValue;
+  }
+
+  // Applies the current plate/date filter selections against the cached
+  // entries and re-renders the list — no re-fetch needed.
+  function getFilteredHistoryEntries(){
+    var plateFilter = document.getElementById('historyPlateFilter').value;
+    var dateFilterVal = document.getElementById('historyDateFilter').value;
+    var dateFilterStr = null;
+    if(dateFilterVal){
+      var parts = dateFilterVal.split('-').map(Number);
+      dateFilterStr = new Date(parts[0], parts[1]-1, parts[2]).toDateString();
+    }
+    return historyEntriesCache.filter(function(entry){
+      if(plateFilter && normalizePlate(entry.plate) !== plateFilter) return false;
+      if(dateFilterStr && new Date(entry.dateISO).toDateString() !== dateFilterStr) return false;
+      return true;
+    });
+  }
+
+  function renderHistoryList(){
+    var list = document.getElementById('historyList');
+    var countEl = document.getElementById('historyResultCount');
+    var plateFilter = document.getElementById('historyPlateFilter').value;
+    var dateFilterVal = document.getElementById('historyDateFilter').value;
+    var entries = getFilteredHistoryEntries();
+
+    if(!historyEntriesCache.length){
+      countEl.textContent = '';
+      return;
+    }
+
+    countEl.textContent = entries.length + ' result' + (entries.length===1?'':'s') + (plateFilter||dateFilterVal ? ' (filtered)' : '');
+
+    if(!entries.length){
+      list.innerHTML = '<div class="empty-state">No checklists match this search.</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    entries.forEach(function(entry){
+      var flagged = Object.values(entry.inspection).filter(function(x){return x.status==='BAD';}).length;
+      var d = new Date(entry.dateISO);
+      var dateStr = d.toLocaleDateString('en-US',{month:'short', day:'2-digit', year:'numeric'}) + ' • ' + d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+
+      var card = document.createElement('div');
+      card.className = 'history-card';
+      card.innerHTML =
+        '<div class="history-meta">'+
+          '<div class="history-plate">'+ (entry.plate || 'NO PLATE') +'</div>'+
+          '<div class="history-sub">'+ dateStr +' • '+ entry.parking +'</div>'+
+        '</div>'+
+        '<div class="history-badge '+(flagged? 'flag':'clean')+'">'+(flagged? flagged+' FLAG' : 'CLEAN')+'</div>'+
+        '<button class="history-dl" data-id="'+entry.id+'" title="Download this checklist">⬇</button>'+
+        '<button class="history-del" data-id="'+entry.id+'">✕</button>';
+
+      card.addEventListener('click', function(ev){
+        if(ev.target.classList.contains('history-del') || ev.target.classList.contains('history-dl')) return;
+        showDetail(entry);
+      });
+      card.querySelector('.history-dl').addEventListener('click', function(ev){
+        ev.stopPropagation();
+        downloadSingleEntryCsv(entry);
+      });
+      card.querySelector('.history-del').addEventListener('click', async function(ev){
+        ev.stopPropagation();
+        if(!confirm('Delete this checklist?')) return;
+        await storageAPI.delete('checklist:' + entry.id, true);
+        loadHistory();
+      });
+
+      list.appendChild(card);
+    });
+  }
+
+  // Builds one summary row per checklist for the bulk history export.
+  function historyExportHeaderRow(){
+    return ['Plate','Date','Time','Driver','Agency','Parking','Inspected By','Odometer (KM)','Flagged Count','Flagged Items / Reasons'];
+  }
+  function historyExportRow(entry){
+    var d = new Date(entry.dateISO);
+    var badItems = Object.keys(entry.inspection || {}).filter(function(name){
+      return entry.inspection[name] && entry.inspection[name].status === 'BAD';
+    });
+    var flaggedTxt = badItems.map(function(name){
+      var it = entry.inspection[name];
+      var reasonTxt = (it.reason || '').trim();
+      return name + (reasonTxt ? ' (' + reasonTxt + ')' : '');
+    }).join('; ');
+    return [
+      entry.plate || '',
+      d.toLocaleDateString('en-US',{month:'short', day:'2-digit', year:'numeric'}),
+      d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),
+      entry.driver || '',
+      entry.agency || '',
+      entry.parking || '',
+      entry.inspectedBy || '',
+      entry.odometer || '',
+      badItems.length,
+      flaggedTxt
+    ];
+  }
+
+  function downloadHistoryCsv(){
+    var entries = getFilteredHistoryEntries();
+    if(!entries.length){ alert('No checklists to download for the current filters.'); return; }
+    var rows = [historyExportHeaderRow()].concat(entries.map(historyExportRow));
+    var plateFilter = document.getElementById('historyPlateFilter').value;
+    var dateFilterVal = document.getElementById('historyDateFilter').value;
+    var namebits = ['truck-checklist-history'];
+    if(plateFilter) namebits.push(sanitizeFileSlug(plateFilter));
+    if(dateFilterVal) namebits.push(dateFilterVal);
+    downloadTextFile(namebits.join('_') + '.csv', rowsToCsv(rows));
+  }
+  document.getElementById('historyDownloadBtn').addEventListener('click', downloadHistoryCsv);
+
+  // Full itemized export for a single checklist (header info + one row per inspection item).
+  function downloadSingleEntryCsv(entry){
+    var d = new Date(entry.dateISO);
+    var rows = [];
+    rows.push(['Plate', entry.plate || '']);
+    rows.push(['Date', d.toLocaleString()]);
+    rows.push(['Driver', entry.driver || '']);
+    rows.push(['Agency', entry.agency || '']);
+    rows.push(['Parking', entry.parking || '']);
+    rows.push(['Inspected By', entry.inspectedBy || '']);
+    rows.push(['Odometer (KM)', entry.odometer || '']);
+    rows.push([]);
+    rows.push(['Item','Status','Brand','Reason']);
+    INSPECTION_ITEMS.forEach(function(name){
+      var it = entry.inspection[name] || {status:'', brand:'', reason:''};
+      rows.push([name, it.status || '', it.brand || '', it.reason || '']);
+    });
+    rows.push([]);
+    var toolsChecked = Object.keys(entry.tools || {}).filter(function(k){return entry.tools[k];});
+    var toolsMissing = Object.keys(entry.tools || {}).filter(function(k){return !entry.tools[k];});
+    rows.push(['Tools Checked', toolsChecked.join('; ')]);
+    rows.push(['Tools Missing', toolsMissing.join('; ')]);
+    if(entry.remarks) rows.push(['Remarks', entry.remarks]);
+
+    var namebits = ['truck-checklist', sanitizeFileSlug(entry.plate || 'unknown'), sanitizeFileSlug(d.toISOString().slice(0,10))];
+    downloadTextFile(namebits.join('_') + '.csv', rowsToCsv(rows));
+  }
+
+  document.getElementById('historyPlateFilter').addEventListener('change', renderHistoryList);
+  document.getElementById('historyDateFilter').addEventListener('change', renderHistoryList);
+  document.getElementById('historyClearBtn').addEventListener('click', function(){
+    document.getElementById('historyPlateFilter').value = '';
+    document.getElementById('historyDateFilter').value = '';
+    renderHistoryList();
+  });
+
+  // ---------- SUMMARY ----------
+  // Per-parking completion stats for the selected date: how many rostered
+  // trucks have had a checklist submitted, and how many of those came
+  // back flagged. Denominator for both metrics is the truck roster count
+  // for that parking. Defaults to today; the date input lets you look
+  // back at any prior day's completion.
+  var summaryRowPlates = {}; // rowKey ('p::<parking>::pending'/'::flagged') -> {title, plates}
+
+  function summaryPendingListHtml(title, plates){
+    var body = plates.length
+      ? plates.map(function(p){ return '<div class="detail-line"><div class="k">Plate #</div><div>'+escapeHtml(p)+'</div></div>'; }).join('')
+      : '<div class="empty-state">None — every roster truck has been checked.</div>';
+    return '<h3>'+escapeHtml(title)+'</h3>'+
+      '<div class="detail-line"><div class="k">Count</div><div>'+plates.length+'</div></div>'+
+      body;
+  }
+
+  function summaryFlaggedListHtml(title, detailsByPlate){
+    var plates = Object.keys(detailsByPlate || {}).sort();
+    var body = plates.length
+      ? plates.map(function(plate){
+          var items = detailsByPlate[plate] || [];
+          var itemsHtml = items.map(function(it){
+            var brandTxt = it.brand ? ' ('+escapeHtml(it.brand)+')' : '';
+            var reasonTxt = it.reason ? escapeHtml(it.reason) : 'No reason entered';
+            return '<div style="padding:4px 0 4px 10px; border-left:2px solid var(--bad); margin:4px 0;">'+
+              '<div style="font-weight:600; font-size:12.5px;">'+escapeHtml(it.item)+brandTxt+'</div>'+
+              '<div style="font-size:12px; color:var(--muted); font-style:italic;">'+reasonTxt+'</div>'+
+            '</div>';
+          }).join('');
+          return '<div style="margin-bottom:12px;">'+
+            '<div class="detail-line" style="border-bottom:none; padding-bottom:2px;"><div class="k">Plate #</div><div style="font-weight:700; color:var(--bad);">'+escapeHtml(plate)+'</div></div>'+
+            itemsHtml +
+          '</div>';
+        }).join('')
+      : '<div class="empty-state">None — no flagged issues.</div>';
+    return '<h3>'+escapeHtml(title)+'</h3>'+
+      '<div class="detail-line"><div class="k">Trucks Flagged</div><div>'+plates.length+'</div></div>'+
+      body;
+  }
+
+  document.getElementById('summaryList').addEventListener('click', function(ev){
+    var row = ev.target.closest('.summary-row-clickable');
+    if(!row) return;
+    var rowKey = row.getAttribute('data-row-key');
+    var data = summaryRowPlates[rowKey];
+    if(!data) return;
+    var html = data.type === 'flagged'
+      ? summaryFlaggedListHtml(data.title, data.details)
+      : summaryPendingListHtml(data.title, data.plates);
+    document.getElementById('detailBox').innerHTML = html;
+    document.getElementById('detailOverlay').classList.add('show');
+  });
+
+  function todayInputValue(){
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  async function loadSummary(){
+    var list = document.getElementById('summaryList');
+    var dateEl = document.getElementById('summaryDate');
+    var dateInput = document.getElementById('summaryDateInput');
+    if(!dateInput.value) dateInput.value = todayInputValue();
+    list.innerHTML = '<div class="empty-state">Loading...</div>';
+    summaryRowPlates = {};
+
+    var parts = dateInput.value.split('-').map(Number);
+    var targetDate = new Date(parts[0], parts[1]-1, parts[2]);
+    var targetDateStr = targetDate.toDateString();
+    var isToday = dateInput.value === todayInputValue();
+    dateEl.textContent = (isToday ? 'Today · ' : '') + targetDate.toLocaleDateString('en-US',{month:'short', day:'2-digit', year:'numeric'});
+
+    try{
+      await refreshRosterCache(); // pick up roster changes from any device
+
+      var totals = {};
+      var rosterPlatesByParking = {}; // parking -> [plates]
+      PARKING_LOCATIONS.forEach(function(p){ totals[p] = 0; rosterPlatesByParking[p] = []; });
+      Object.keys(rosterCache).forEach(function(plate){
+        var p = rosterCache[plate];
+        if(!p) return;
+        totals[p] = (totals[p] || 0) + 1;
+        rosterPlatesByParking[p] = rosterPlatesByParking[p] || [];
+        rosterPlatesByParking[p].push(plate);
+      });
+
+      var keysRes = await storageAPI.list('checklist:', true);
+      var keys = (keysRes && keysRes.keys) ? keysRes.keys : [];
+      var checkedByParking = {}; // parking -> {normalizedPlate: true}
+      var flaggedDetailsByParking = {}; // parking -> {normalizedPlate: [{item, reason, brand}]}
+
+      for(var i=0;i<keys.length;i++){
+        try{
+          var r = await storageAPI.get(keys[i], true);
+          if(!r || !r.value) continue;
+          var entry = JSON.parse(r.value);
+          if(new Date(entry.dateISO).toDateString() !== targetDateStr) continue;
+          var p = entry.parking;
+          var plate = normalizePlate(entry.plate);
+          if(!p || !plate) continue;
+
+          checkedByParking[p] = checkedByParking[p] || {};
+          checkedByParking[p][plate] = true;
+
+          var badItems = Object.keys(entry.inspection || {}).filter(function(name){
+            return entry.inspection[name] && entry.inspection[name].status === 'BAD';
+          });
+          if(badItems.length){
+            flaggedDetailsByParking[p] = flaggedDetailsByParking[p] || {};
+            flaggedDetailsByParking[p][plate] = flaggedDetailsByParking[p][plate] || [];
+            badItems.forEach(function(name){
+              var it = entry.inspection[name];
+              flaggedDetailsByParking[p][plate].push({
+                item: name,
+                brand: (it.brand || '').trim(),
+                reason: (it.reason || '').trim()
+              });
+            });
+          }
+        }catch(e){}
+      }
+
+      var allParkings = PARKING_LOCATIONS.slice();
+      Object.keys(totals).forEach(function(p){ if(allParkings.indexOf(p) === -1) allParkings.push(p); });
+      Object.keys(checkedByParking).forEach(function(p){ if(allParkings.indexOf(p) === -1) allParkings.push(p); });
+
+      if(!allParkings.length){
+        list.innerHTML = '<div class="empty-state">No parking locations found.</div>';
+        return;
+      }
+
+      function summaryCardHtml(rowKey, title, checked, flaggedCount, total, highlight, pendingPlates, flaggedDetails){
+        var pending = Math.max(0, total - checked);
+        var checkedPct = total ? Math.round((checked/total)*100) : 0;
+        var pendingPct = total ? Math.round((pending/total)*100) : 0;
+        var flaggedPct = total ? Math.round((flaggedCount/total)*100) : 0;
+
+        summaryRowPlates[rowKey + '::pending'] = {type:'pending', title: title + ' — Not Yet Checked', plates: pendingPlates};
+        summaryRowPlates[rowKey + '::flagged'] = {type:'flagged', title: title + ' — Flagged / Issue', details: flaggedDetails};
+
+        return '<div class="summary-card"'+(highlight ? ' style="border-color:var(--amber);"' : '')+'>'+
+          '<div class="summary-title"'+(highlight ? ' style="color:var(--amber);"' : '')+'>'+escapeHtml(title)+'</div>'+
+          '<div class="summary-row">'+
+            '<div class="summary-row-top"><div class="summary-label">Checklist Done</div><div class="summary-value">'+checked+' out '+total+' = '+checkedPct+'%</div></div>'+
+            '<div class="summary-bar"><div class="summary-bar-fill" style="width:'+checkedPct+'%;"></div></div>'+
+          '</div>'+
+          '<div class="summary-row summary-row-clickable" data-row-key="'+rowKey+'::pending">'+
+            '<div class="summary-row-top"><div class="summary-label">Not Yet Checked ›</div><div class="summary-value pending">'+pending+' out '+total+' = '+pendingPct+'%</div></div>'+
+            '<div class="summary-bar"><div class="summary-bar-fill pending" style="width:'+pendingPct+'%;"></div></div>'+
+          '</div>'+
+          '<div class="summary-row summary-row-clickable" data-row-key="'+rowKey+'::flagged">'+
+            '<div class="summary-row-top"><div class="summary-label">Flagged / Issue ›</div><div class="summary-value flag">'+flaggedCount+' out '+total+' = '+flaggedPct+'%</div></div>'+
+            '<div class="summary-bar"><div class="summary-bar-fill flag" style="width:'+flaggedPct+'%;"></div></div>'+
+          '</div>'+
+          (total === 0 ? '<div class="summary-empty-note">No trucks in roster for this parking.</div>' : '') +
+        '</div>';
+      }
+
+      var grandTotal = 0, grandChecked = 0, grandFlagged = 0;
+      var grandPending = [], grandFlaggedDetails = {};
+      var cardsHtml = '';
+      allParkings.forEach(function(p){
+        var total = totals[p] || 0;
+        var checkedPlates = checkedByParking[p] ? Object.keys(checkedByParking[p]) : [];
+        var flaggedDetails = flaggedDetailsByParking[p] || {};
+        var flaggedPlates = Object.keys(flaggedDetails);
+        var rosterPlates = rosterPlatesByParking[p] || [];
+        var pendingPlates = rosterPlates.filter(function(plate){ return checkedPlates.indexOf(plate) === -1; });
+        grandTotal += total; grandChecked += checkedPlates.length; grandFlagged += flaggedPlates.length;
+        grandPending = grandPending.concat(pendingPlates);
+        flaggedPlates.forEach(function(plate){ grandFlaggedDetails[plate] = flaggedDetails[plate]; });
+        cardsHtml += summaryCardHtml('p::'+p, p, checkedPlates.length, flaggedPlates.length, total, false, pendingPlates.sort(), flaggedDetails);
+      });
+
+      list.innerHTML = summaryCardHtml('p::__ALL__', 'All Parking (Overall)', grandChecked, grandFlagged, grandTotal, true, grandPending.sort(), grandFlaggedDetails) + cardsHtml;
+    }catch(e){
+      list.innerHTML = '<div class="empty-state">Could not load summary.</div>';
+      console.error(e);
+    }
+  }
+
+  // ---------- TOP FLAGGED DRIVERS ----------
+  // All-time leaderboard (not tied to the summary date picker): ranks
+  // drivers by total number of individually flagged inspection items
+  // across every checklist they've been on, and breaks that count down
+  // by item/reason so a count > 1 shows exactly why.
+  async function loadTopFlaggedDrivers(){
+    var list = document.getElementById('topDriversList');
+    list.innerHTML = '<div class="empty-state">Loading...</div>';
+    try{
+      var keysRes = await storageAPI.list('checklist:', true);
+      var keys = (keysRes && keysRes.keys) ? keysRes.keys : [];
+      var driverStats = {}; // normalized driver key -> {name, agency, count, reasons:{label:count}}
+
+      for(var i=0;i<keys.length;i++){
+        try{
+          var r = await storageAPI.get(keys[i], true);
+          if(!r || !r.value) continue;
+          var entry = JSON.parse(r.value);
+          var driverName = (entry.driver || '').trim();
+          if(!driverName) continue;
+
+          var badItems = Object.keys(entry.inspection || {}).filter(function(name){
+            return entry.inspection[name] && entry.inspection[name].status === 'BAD';
+          });
+          if(!badItems.length) continue;
+
+          var key = driverName.toLowerCase();
+          driverStats[key] = driverStats[key] || {name: driverName, agency: (entry.agency||'').trim(), count: 0, reasons: {}};
+          if(!driverStats[key].agency && entry.agency) driverStats[key].agency = entry.agency.trim();
+
+          badItems.forEach(function(name){
+            var it = entry.inspection[name];
+            var reasonTxt = (it.reason || '').trim();
+            var label = name + (reasonTxt ? ' — ' + reasonTxt : '');
+            driverStats[key].count += 1;
+            driverStats[key].reasons[label] = (driverStats[key].reasons[label] || 0) + 1;
+          });
+        }catch(e){}
+      }
+
+      var ranked = Object.keys(driverStats).map(function(k){ return driverStats[k]; });
+      ranked.sort(function(a,b){ return b.count - a.count; });
+      ranked = ranked.slice(0, 5);
+
+      if(!ranked.length){
+        list.innerHTML = '<div class="empty-state">No flagged issues recorded yet.</div>';
+        return;
+      }
+
+      list.innerHTML = ranked.map(function(d, idx){
+        var reasonLabels = Object.keys(d.reasons).sort(function(a,b){ return d.reasons[b]-d.reasons[a]; });
+        var reasonsHtml = d.count > 1
+          ? '<div class="driver-reasons">' + reasonLabels.map(function(label){
+              var c = d.reasons[label];
+              return '<div class="driver-reason-line"><b>'+escapeHtml(label)+'</b>'+(c>1 ? ' <span class="rcount">×'+c+'</span>' : '')+'</div>';
+            }).join('') + '</div>'
+          : '<div class="driver-reasons"><div class="driver-reason-line">'+escapeHtml(reasonLabels[0]||'')+'</div></div>';
+
+        return '<div class="driver-card">'+
+          '<div class="driver-rank">#'+(idx+1)+'</div>'+
+          '<div class="driver-info">'+
+            '<div class="driver-name-row">'+
+              '<div class="driver-name">'+escapeHtml(d.name)+'</div>'+
+              '<div class="driver-count">'+d.count+' flagged</div>'+
+            '</div>'+
+            '<div class="driver-agency">'+escapeHtml(d.agency || 'No Agency')+'</div>'+
+            reasonsHtml +
+          '</div>'+
+        '</div>';
+      }).join('');
+    }catch(e){
+      list.innerHTML = '<div class="empty-state">Could not load driver stats.</div>';
+      console.error(e);
+    }
+  }
+
+  // ---------- TOP FLAGGED AGENCIES ----------
+  // All-time leaderboard (not tied to the summary date picker): ranks
+  // agencies by total number of individually flagged inspection items
+  // across every checklist under that agency, and breaks that count down
+  // by item/reason, plus which trucks (plates) were involved.
+  async function loadTopFlaggedAgencies(){
+    var list = document.getElementById('topAgenciesList');
+    list.innerHTML = '<div class="empty-state">Loading...</div>';
+    try{
+      var keysRes = await storageAPI.list('checklist:', true);
+      var keys = (keysRes && keysRes.keys) ? keysRes.keys : [];
+      var agencyStats = {}; // normalized agency key -> {name, count, plates:Set-ish, reasons:{label:count}}
+
+      for(var i=0;i<keys.length;i++){
+        try{
+          var r = await storageAPI.get(keys[i], true);
+          if(!r || !r.value) continue;
+          var entry = JSON.parse(r.value);
+          var agencyName = (entry.agency || '').trim();
+          if(!agencyName) continue;
+
+          var badItems = Object.keys(entry.inspection || {}).filter(function(name){
+            return entry.inspection[name] && entry.inspection[name].status === 'BAD';
+          });
+          if(!badItems.length) continue;
+
+          var key = agencyName.toLowerCase();
+          agencyStats[key] = agencyStats[key] || {name: agencyName, count: 0, plates: {}, reasons: {}};
+
+          if(entry.plate) agencyStats[key].plates[entry.plate] = true;
+
+          badItems.forEach(function(name){
+            var it = entry.inspection[name];
+            var reasonTxt = (it.reason || '').trim();
+            var label = name + (reasonTxt ? ' — ' + reasonTxt : '');
+            agencyStats[key].count += 1;
+            agencyStats[key].reasons[label] = (agencyStats[key].reasons[label] || 0) + 1;
+          });
+        }catch(e){}
+      }
+
+      var ranked = Object.keys(agencyStats).map(function(k){ return agencyStats[k]; });
+      ranked.sort(function(a,b){ return b.count - a.count; });
+      ranked = ranked.slice(0, 5);
+
+      if(!ranked.length){
+        list.innerHTML = '<div class="empty-state">No flagged issues recorded yet.</div>';
+        return;
+      }
+
+      list.innerHTML = ranked.map(function(d, idx){
+        var reasonLabels = Object.keys(d.reasons).sort(function(a,b){ return d.reasons[b]-d.reasons[a]; });
+        var reasonsHtml = d.count > 1
+          ? '<div class="driver-reasons">' + reasonLabels.map(function(label){
+              var c = d.reasons[label];
+              return '<div class="driver-reason-line"><b>'+escapeHtml(label)+'</b>'+(c>1 ? ' <span class="rcount">×'+c+'</span>' : '')+'</div>';
+            }).join('') + '</div>'
+          : '<div class="driver-reasons"><div class="driver-reason-line">'+escapeHtml(reasonLabels[0]||'')+'</div></div>';
+
+        var plateList = Object.keys(d.plates);
+        var plateTxt = plateList.length ? plateList.join(', ') : 'No Plate';
+
+        return '<div class="driver-card">'+
+          '<div class="driver-rank">#'+(idx+1)+'</div>'+
+          '<div class="driver-info">'+
+            '<div class="driver-name-row">'+
+              '<div class="driver-name">'+escapeHtml(d.name)+'</div>'+
+              '<div class="driver-count">'+d.count+' flagged</div>'+
+            '</div>'+
+            '<div class="driver-agency">'+escapeHtml(plateTxt)+'</div>'+
+            reasonsHtml +
+          '</div>'+
+        '</div>';
+      }).join('');
+    }catch(e){
+      list.innerHTML = '<div class="empty-state">Could not load agency stats.</div>';
+      console.error(e);
+    }
+  }
+
+  // ---------- ROSTER ----------
+  // Roster is shared storage: every user of this app sees the same truck list.
+  // Stored as ONE JSON blob under a single key (not one key per truck) so
+  // reading/writing the whole roster is a single storage call instead of a
+  // list-then-fetch-per-key loop — that pattern is what was tripping the
+  // storage backend's rate limiting under the background sync poll.
+  var rosterCache = {}; // normalized plate -> parking (used for the dropdown)
+  var rosterEntries = {}; // normalized plate -> {plate, parking} (full records)
+  var rosterEditKey = null; // set while editing an existing entry
+
+  function normalizePlate(p){ return String(p||'').trim().toUpperCase().replace(/\s+/g,' '); }
+  function rosterKeyFor(plate){ return normalizePlate(plate); }
+  function matchParking(input){
+    var norm = String(input||'').trim().toLowerCase();
+    for(var i=0;i<PARKING_LOCATIONS.length;i++){
+      if(PARKING_LOCATIONS[i].toLowerCase() === norm) return PARKING_LOCATIONS[i];
+    }
+    return null;
+  }
+
+  function populateParkingSelect(sel){
+    sel.innerHTML = '<option value="">Select parking</option>' +
+      PARKING_LOCATIONS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('');
+  }
+  populateParkingSelect(document.getElementById('rosterParkingInput'));
+
+  // Rebuilds the Truck Plate No. dropdown to only show trucks whose roster
+  // parking matches the currently selected Parking Location.
+  function rebuildPlateOptions(){
+    var sel = document.getElementById('plate');
+    var parking = document.getElementById('parking').value;
+    var otherInput = document.getElementById('plateOther');
+
+    if(!parking){
+      sel.disabled = true;
+      sel.innerHTML = '<option value="">Select parking location first</option>';
+      otherInput.style.display = 'none';
+      otherInput.value = '';
+      return;
+    }
+
+    var plates = Object.keys(rosterCache).filter(function(p){
+      return rosterCache[p] === parking;
+    }).sort();
+
+    var options = '<option value="">Select truck plate</option>' +
+      plates.map(function(p){ return '<option value="'+escapeHtml(p)+'">'+escapeHtml(p)+'</option>'; }).join('') +
+      '<option value="__other__">Other (not in roster)</option>';
+
+    sel.disabled = false;
+    sel.innerHTML = options;
+    otherInput.style.display = 'none';
+    otherInput.value = '';
+  }
+
+  // Returns the plate value the form should use, whichever mode is active.
+  function getPlateValue(){
+    var sel = document.getElementById('plate');
+    if(sel.value === '__other__'){
+      return document.getElementById('plateOther').value.trim();
+    }
+    return sel.value.trim();
+  }
+
+  document.getElementById('parking').addEventListener('change', rebuildPlateOptions);
+
+  document.getElementById('plate').addEventListener('change', function(){
+    var otherInput = document.getElementById('plateOther');
+    if(this.value === '__other__'){
+      otherInput.style.display = 'block';
+      otherInput.focus();
+    } else {
+      otherInput.style.display = 'none';
+      otherInput.value = '';
+    }
+  });
+
+  // Applies a freshly loaded (or locally mutated) roster blob to the caches
+  // that drive the UI, without any additional storage calls.
+  function applyRosterEntries(data){
+    rosterEntries = data || {};
+    var cache = {};
+    Object.keys(rosterEntries).forEach(function(k){
+      var rec = rosterEntries[k];
+      if(rec) cache[normalizePlate(rec.plate)] = rec.parking;
+    });
+    rosterCache = cache;
+    rebuildPlateOptions();
+  }
+
+  // Loads the full roster (single shared record) into memory. Called at
+  // startup, on tab open, and by the background poll.
+  async function refreshRosterCache(){
+    try{
+      var r = await storageAPI.get('roster-data', true);
+      applyRosterEntries(r && r.value ? JSON.parse(r.value) : {});
+    }catch(e){
+      // A missing key just means no roster has been saved yet.
+      applyRosterEntries(rosterEntries);
+    }
+  }
+
+  async function saveRosterEntries(){
+    await storageAPI.set('roster-data', JSON.stringify(rosterEntries), true);
+  }
+
+  function resetRosterForm(){
+    rosterEditKey = null;
+    document.getElementById('rosterFormTitle').textContent = 'Add Truck';
+    document.getElementById('rosterSaveBtn').textContent = 'Add To Roster';
+    document.getElementById('rosterCancelBtn').style.display = 'none';
+    document.getElementById('rosterPlateInput').value = '';
+    document.getElementById('rosterParkingInput').value = '';
+  }
+
+  function startEditRoster(plate, parking, key){
+    rosterEditKey = key;
+    document.getElementById('rosterFormTitle').textContent = 'Edit Truck';
+    document.getElementById('rosterSaveBtn').textContent = 'Update Truck';
+    document.getElementById('rosterCancelBtn').style.display = 'block';
+    document.getElementById('rosterPlateInput').value = plate;
+    document.getElementById('rosterParkingInput').value = parking;
+    document.getElementById('rosterPlateInput').focus();
+  }
+
+  document.getElementById('rosterCancelBtn').addEventListener('click', resetRosterForm);
+
+  document.getElementById('rosterSaveBtn').addEventListener('click', async function(){
+    var plate = document.getElementById('rosterPlateInput').value.trim();
+    var parking = document.getElementById('rosterParkingInput').value;
+    if(!plate){ showToast('Enter a truck plate no.'); return; }
+    if(!parking){ showToast('Select a parking location'); return; }
+
+    var newKey = rosterKeyFor(plate);
+    try{
+      // If editing and the plate itself changed, move the entry to the new key.
+      if(rosterEditKey && rosterEditKey !== newKey){
+        delete rosterEntries[rosterEditKey];
+      }
+      rosterEntries[newKey] = {plate: normalizePlate(plate), parking: parking};
+      await saveRosterEntries();
+      showToast(rosterEditKey ? 'Truck updated' : 'Truck added to roster');
+      resetRosterForm();
+      applyRosterEntries(rosterEntries);
+      loadRosterList();
+    }catch(e){
+      console.error(e);
+      showToast('Save failed, try again');
+    }
+  });
+
+  document.getElementById('rosterFileInput').addEventListener('change', function(ev){
+    var file = ev.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      document.getElementById('rosterBulkInput').value = String(reader.result || '');
+      showToast('File loaded — review, then tap Import');
+    };
+    reader.onerror = function(){ showToast('Could not read file'); };
+    reader.readAsText(file);
+    ev.target.value = '';
+  });
+
+  document.getElementById('rosterImportBtn').addEventListener('click', async function(){
+    var raw = document.getElementById('rosterBulkInput').value;
+    var lines = raw.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
+    if(!lines.length){ showToast('Paste or load some rows first'); return; }
+
+    var imported = 0, skipped = 0, skippedLines = [];
+    for(var i=0;i<lines.length;i++){
+      var parts = lines[i].split(/[,\t]/).map(function(s){return s.trim();});
+      var plate = parts[0];
+      var parkingRaw = parts.slice(1).join(' ').trim();
+      var parking = matchParking(parkingRaw);
+      if(!plate || !parking){
+        skipped++;
+        skippedLines.push(lines[i]);
+        continue;
+      }
+      rosterEntries[rosterKeyFor(plate)] = {plate: normalizePlate(plate), parking: parking};
+      imported++;
+    }
+
+    try{
+      if(imported) await saveRosterEntries();
+    }catch(e){
+      console.error(e);
+      showToast('Import failed to save, try again');
+      return;
+    }
+
+    applyRosterEntries(rosterEntries);
+    loadRosterList();
+    document.getElementById('rosterBulkInput').value = skippedLines.join('\n');
+    showToast(imported + ' imported' + (skipped ? ', ' + skipped + ' skipped (bad plate/parking)' : ''));
+  });
+
+  async function loadRosterList(){
+    var list = document.getElementById('rosterList');
+    var countEl = document.getElementById('rosterCount');
+    list.innerHTML = '<div class="empty-state">Loading...</div>';
+    try{
+      await refreshRosterCache(); // single storage call keeps dropdown + list in sync
+      var entries = Object.keys(rosterEntries).map(function(k){ return {key:k, data: rosterEntries[k]}; });
+      if(!entries.length){
+        countEl.textContent = '0 trucks';
+        list.innerHTML = '<div class="empty-state">No trucks in the roster yet.<br>Add one above or bulk upload.</div>';
+        return;
+      }
+      entries.sort(function(a,b){ return a.data.plate.localeCompare(b.data.plate); });
+      countEl.textContent = entries.length + ' truck' + (entries.length===1 ? '' : 's');
+
+      list.innerHTML = '';
+      entries.forEach(function(entry){
+        var card = document.createElement('div');
+        card.className = 'history-card';
+        card.innerHTML =
+          '<div class="history-meta">'+
+            '<div class="history-plate">'+ escapeHtml(entry.data.plate) +'</div>'+
+            '<div class="history-sub">'+ escapeHtml(entry.data.parking) +'</div>'+
+          '</div>'+
+          '<div class="roster-actions">'+
+            '<button class="roster-edit" data-key="'+entry.key+'">✎</button>'+
+            '<button class="history-del" data-key="'+entry.key+'">✕</button>'+
+          '</div>';
+
+        card.querySelector('.roster-edit').addEventListener('click', function(){
+          startEditRoster(entry.data.plate, entry.data.parking, entry.key);
+        });
+        card.querySelector('.history-del').addEventListener('click', async function(){
+          if(!confirm('Remove ' + entry.data.plate + ' from the roster?')) return;
+          delete rosterEntries[entry.key];
+          try{
+            await saveRosterEntries();
+          }catch(e){
+            console.error(e);
+            showToast('Delete failed, try again');
+            return;
+          }
+          applyRosterEntries(rosterEntries);
+          loadRosterList();
+        });
+
+        list.appendChild(card);
+      });
+    }catch(e){
+      list.innerHTML = '<div class="empty-state">Could not load roster.</div>';
+      console.error(e);
+    }
+  }
+
+
+  // ---------- AGENCY ROSTER ----------
+  // Agencies are also shared storage, managed by admins the same way as the
+  // truck roster — stored as ONE JSON blob (not one key per agency) so a
+  // read/write is a single storage call, same reasoning as the truck roster.
+  var agencyCache = []; // list of agency names (for the checklist dropdown)
+  var agencyEntries = {}; // normalized name -> {name} (full records)
+  var agencyEditKey = null;
+
+  function normalizeAgency(a){ return String(a||'').trim(); }
+  function agencyKeyFor(name){ return normalizeAgency(name).toUpperCase(); }
+
+  // Rebuilds the checklist's Agency dropdown from the cached agency roster.
+  function rebuildAgencyOptions(){
+    var sel = document.getElementById('agency');
+    var current = sel.value;
+    var options = '<option value="">Select agency</option>' +
+      agencyCache.slice().sort().map(function(a){ return '<option value="'+escapeHtml(a)+'">'+escapeHtml(a)+'</option>'; }).join('') +
+      '<option value="__other__">Other (not in roster)</option>';
+    sel.innerHTML = options;
+    if(agencyCache.indexOf(current) !== -1 || current === '__other__') sel.value = current;
+  }
+
+  // Returns the agency value the form should use, whichever mode is active.
+  function getAgencyValue(){
+    var sel = document.getElementById('agency');
+    if(sel.value === '__other__'){
+      return document.getElementById('agencyOther').value.trim();
+    }
+    return sel.value.trim();
+  }
+
+  document.getElementById('agency').addEventListener('change', function(){
+    var otherInput = document.getElementById('agencyOther');
+    if(this.value === '__other__'){
+      otherInput.style.display = 'block';
+      otherInput.focus();
+    } else {
+      otherInput.style.display = 'none';
+      otherInput.value = '';
+    }
+  });
+
+  function applyAgencyEntries(data){
+    agencyEntries = data || {};
+    agencyCache = Object.keys(agencyEntries).map(function(k){ return agencyEntries[k].name; });
+    rebuildAgencyOptions();
+  }
+
+  // Loads the full agency roster (single shared record) into memory.
+  // Called at startup, on tab open, and by the background poll.
+  async function refreshAgencyCache(){
+    try{
+      var r = await storageAPI.get('agency-data', true);
+      applyAgencyEntries(r && r.value ? JSON.parse(r.value) : {});
+    }catch(e){
+      // A missing key just means no agencies have been saved yet.
+      applyAgencyEntries(agencyEntries);
+    }
+  }
+
+  async function saveAgencyEntries(){
+    await storageAPI.set('agency-data', JSON.stringify(agencyEntries), true);
+  }
+
+  function resetAgencyForm(){
+    agencyEditKey = null;
+    document.getElementById('agencyFormTitle').textContent = 'Add Agency';
+    document.getElementById('agencyRosterSaveBtn').textContent = 'Add Agency';
+    document.getElementById('agencyRosterCancelBtn').style.display = 'none';
+    document.getElementById('agencyRosterInput').value = '';
+  }
+
+  function startEditAgency(name, key){
+    agencyEditKey = key;
+    document.getElementById('agencyFormTitle').textContent = 'Edit Agency';
+    document.getElementById('agencyRosterSaveBtn').textContent = 'Update Agency';
+    document.getElementById('agencyRosterCancelBtn').style.display = 'block';
+    document.getElementById('agencyRosterInput').value = name;
+    document.getElementById('agencyRosterInput').focus();
+  }
+
+  document.getElementById('agencyRosterCancelBtn').addEventListener('click', resetAgencyForm);
+
+  document.getElementById('agencyRosterSaveBtn').addEventListener('click', async function(){
+    var name = document.getElementById('agencyRosterInput').value.trim();
+    if(!name){ showToast('Enter an agency name'); return; }
+
+    var newKey = agencyKeyFor(name);
+    try{
+      if(agencyEditKey && agencyEditKey !== newKey){
+        delete agencyEntries[agencyEditKey];
+      }
+      agencyEntries[newKey] = {name: normalizeAgency(name)};
+      await saveAgencyEntries();
+      showToast(agencyEditKey ? 'Agency updated' : 'Agency added to roster');
+      resetAgencyForm();
+      applyAgencyEntries(agencyEntries);
+      loadAgencyList();
+    }catch(e){
+      console.error(e);
+      showToast('Save failed, try again');
+    }
+  });
+
+  document.getElementById('agencyFileInput').addEventListener('change', function(ev){
+    var file = ev.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      document.getElementById('agencyBulkInput').value = String(reader.result || '');
+      showToast('File loaded — review, then tap Import');
+    };
+    reader.onerror = function(){ showToast('Could not read file'); };
+    reader.readAsText(file);
+    ev.target.value = '';
+  });
+
+  document.getElementById('agencyImportBtn').addEventListener('click', async function(){
+    var raw = document.getElementById('agencyBulkInput').value;
+    var lines = raw.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
+    if(!lines.length){ showToast('Paste or load some rows first'); return; }
+
+    var imported = 0, skipped = 0, skippedLines = [];
+    for(var i=0;i<lines.length;i++){
+      var name = lines[i].split(/[,\t]/)[0].trim();
+      if(!name){ skipped++; skippedLines.push(lines[i]); continue; }
+      agencyEntries[agencyKeyFor(name)] = {name: normalizeAgency(name)};
+      imported++;
+    }
+
+    try{
+      if(imported) await saveAgencyEntries();
+    }catch(e){
+      console.error(e);
+      showToast('Import failed to save, try again');
+      return;
+    }
+
+    applyAgencyEntries(agencyEntries);
+    loadAgencyList();
+    document.getElementById('agencyBulkInput').value = skippedLines.join('\n');
+    showToast(imported + ' imported' + (skipped ? ', ' + skipped + ' skipped' : ''));
+  });
+
+  async function loadAgencyList(){
+    var list = document.getElementById('agencyList');
+    var countEl = document.getElementById('agencyCount');
+    list.innerHTML = '<div class="empty-state">Loading...</div>';
+    try{
+      await refreshAgencyCache(); // single storage call keeps dropdown + list in sync
+      var entries = Object.keys(agencyEntries).map(function(k){ return {key:k, data: agencyEntries[k]}; });
+      if(!entries.length){
+        countEl.textContent = '0 agencies';
+        list.innerHTML = '<div class="empty-state">No agencies in the roster yet.<br>Add one above or bulk upload.</div>';
+        return;
+      }
+      entries.sort(function(a,b){ return a.data.name.localeCompare(b.data.name); });
+      countEl.textContent = entries.length + ' agenc' + (entries.length===1 ? 'y' : 'ies');
+
+      list.innerHTML = '';
+      entries.forEach(function(entry){
+        var card = document.createElement('div');
+        card.className = 'history-card';
+        card.innerHTML =
+          '<div class="history-meta">'+
+            '<div class="history-plate">'+ escapeHtml(entry.data.name) +'</div>'+
+          '</div>'+
+          '<div class="roster-actions">'+
+            '<button class="roster-edit" data-key="'+entry.key+'">✎</button>'+
+            '<button class="history-del" data-key="'+entry.key+'">✕</button>'+
+          '</div>';
+
+        card.querySelector('.roster-edit').addEventListener('click', function(){
+          startEditAgency(entry.data.name, entry.key);
+        });
+        card.querySelector('.history-del').addEventListener('click', async function(){
+          if(!confirm('Remove ' + entry.data.name + ' from the roster?')) return;
+          delete agencyEntries[entry.key];
+          try{
+            await saveAgencyEntries();
+          }catch(e){
+            console.error(e);
+            showToast('Delete failed, try again');
+            return;
+          }
+          applyAgencyEntries(agencyEntries);
+          loadAgencyList();
+        });
+
+        list.appendChild(card);
+      });
+    }catch(e){
+      list.innerHTML = '<div class="empty-state">Could not load roster.</div>';
+      console.error(e);
+    }
+  }
+
+
+  // ---------- MECHANIC / SUPPORT ROSTER ----------
+  // Also shared storage, managed by admins the same way as the truck/agency
+  // roster. Stored as ONE JSON blob (not one key per person), keyed by Ops
+  // ID, for the same rate-limit reasons as the other two rosters.
+  var mechanicEntries = {}; // normalized Ops ID -> {name, opsId}
+  var mechanicEditKey = null;
+
+  function normalizeMechanicName(n){ return String(n||'').trim(); }
+  function normalizeOpsId(o){ return String(o||'').trim().toUpperCase(); }
+  function mechanicKeyFor(opsId){ return normalizeOpsId(opsId); }
+
+  async function refreshMechanicCache(){
+    try{
+      var r = await storageAPI.get('mechanic-data', true);
+      mechanicEntries = r && r.value ? JSON.parse(r.value) : {};
+    }catch(e){
+      // A missing key just means no roster has been saved yet.
+      mechanicEntries = mechanicEntries || {};
+    }
+  }
+
+  async function saveMechanicEntries(){
+    await storageAPI.set('mechanic-data', JSON.stringify(mechanicEntries), true);
+  }
+
+  function resetMechanicForm(){
+    mechanicEditKey = null;
+    document.getElementById('mechanicFormTitle').textContent = 'Add Mechanic / Support';
+    document.getElementById('mechanicSaveBtn').textContent = 'Add To Roster';
+    document.getElementById('mechanicCancelBtn').style.display = 'none';
+    document.getElementById('mechanicNameInput').value = '';
+    document.getElementById('mechanicOpsIdInput').value = '';
+  }
+
+  function startEditMechanic(name, opsId, key){
+    mechanicEditKey = key;
+    document.getElementById('mechanicFormTitle').textContent = 'Edit Mechanic / Support';
+    document.getElementById('mechanicSaveBtn').textContent = 'Update Entry';
+    document.getElementById('mechanicCancelBtn').style.display = 'block';
+    document.getElementById('mechanicNameInput').value = name;
+    document.getElementById('mechanicOpsIdInput').value = opsId;
+    document.getElementById('mechanicNameInput').focus();
+  }
+
+  document.getElementById('mechanicCancelBtn').addEventListener('click', resetMechanicForm);
+
+  document.getElementById('mechanicSaveBtn').addEventListener('click', async function(){
+    var name = document.getElementById('mechanicNameInput').value.trim();
+    var opsId = document.getElementById('mechanicOpsIdInput').value.trim();
+    if(!name){ showToast('Enter a name'); return; }
+    if(!opsId){ showToast('Enter an Ops ID'); return; }
+
+    var newKey = mechanicKeyFor(opsId);
+    try{
+      if(mechanicEditKey && mechanicEditKey !== newKey){
+        delete mechanicEntries[mechanicEditKey];
+      }
+      mechanicEntries[newKey] = {name: normalizeMechanicName(name), opsId: normalizeOpsId(opsId)};
+      await saveMechanicEntries();
+      showToast(mechanicEditKey ? 'Entry updated' : 'Added to roster');
+      resetMechanicForm();
+      loadMechanicList();
+    }catch(e){
+      console.error(e);
+      showToast('Save failed, try again');
+    }
+  });
+
+  document.getElementById('mechanicFileInput').addEventListener('change', function(ev){
+    var file = ev.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      document.getElementById('mechanicBulkInput').value = String(reader.result || '');
+      showToast('File loaded — review, then tap Import');
+    };
+    reader.onerror = function(){ showToast('Could not read file'); };
+    reader.readAsText(file);
+    ev.target.value = '';
+  });
+
+  document.getElementById('mechanicImportBtn').addEventListener('click', async function(){
+    var raw = document.getElementById('mechanicBulkInput').value;
+    var lines = raw.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
+    if(!lines.length){ showToast('Paste or load some rows first'); return; }
+
+    var imported = 0, skipped = 0, skippedLines = [];
+    for(var i=0;i<lines.length;i++){
+      var parts = lines[i].split(/[,\t]/);
+      var name = (parts[0]||'').trim();
+      var opsId = (parts[1]||'').trim();
+      if(!name || !opsId){ skipped++; skippedLines.push(lines[i]); continue; }
+      mechanicEntries[mechanicKeyFor(opsId)] = {name: normalizeMechanicName(name), opsId: normalizeOpsId(opsId)};
+      imported++;
+    }
+
+    try{
+      if(imported) await saveMechanicEntries();
+    }catch(e){
+      console.error(e);
+      showToast('Import failed to save, try again');
+      return;
+    }
+
+    loadMechanicList();
+    document.getElementById('mechanicBulkInput').value = skippedLines.join('\n');
+    showToast(imported + ' imported' + (skipped ? ', ' + skipped + ' skipped (need name + Ops ID)' : ''));
+  });
+
+  async function loadMechanicList(){
+    var list = document.getElementById('mechanicList');
+    var countEl = document.getElementById('mechanicCount');
+    list.innerHTML = '<div class="empty-state">Loading...</div>';
+    try{
+      await refreshMechanicCache(); // single storage call
+      var entries = Object.keys(mechanicEntries).map(function(k){ return {key:k, data: mechanicEntries[k]}; });
+      if(!entries.length){
+        countEl.textContent = '0 people';
+        list.innerHTML = '<div class="empty-state">No mechanics/support in the roster yet.<br>Add one above or bulk upload.</div>';
+        return;
+      }
+      entries.sort(function(a,b){ return a.data.name.localeCompare(b.data.name); });
+      countEl.textContent = entries.length + ' ' + (entries.length===1 ? 'person' : 'people');
+
+      list.innerHTML = '';
+      entries.forEach(function(entry){
+        var card = document.createElement('div');
+        card.className = 'history-card';
+        card.innerHTML =
+          '<div class="history-meta">'+
+            '<div class="history-plate">'+ escapeHtml(entry.data.name) +'</div>'+
+            '<div class="history-sub">'+ escapeHtml(entry.data.opsId) +'</div>'+
+          '</div>'+
+          '<div class="roster-actions">'+
+            '<button class="roster-edit" data-key="'+entry.key+'">✎</button>'+
+            '<button class="history-del" data-key="'+entry.key+'">✕</button>'+
+          '</div>';
+
+        card.querySelector('.roster-edit').addEventListener('click', function(){
+          startEditMechanic(entry.data.name, entry.data.opsId, entry.key);
+        });
+        card.querySelector('.history-del').addEventListener('click', async function(){
+          if(!confirm('Remove ' + entry.data.name + ' from the roster?')) return;
+          delete mechanicEntries[entry.key];
+          try{
+            await saveMechanicEntries();
+          }catch(e){
+            console.error(e);
+            showToast('Delete failed, try again');
+            return;
+          }
+          loadMechanicList();
+        });
+
+        list.appendChild(card);
+      });
+    }catch(e){
+      list.innerHTML = '<div class="empty-state">Could not load roster.</div>';
+      console.error(e);
+    }
+  }
+
+
+  function showDetail(entry){
+    var box = document.getElementById('detailBox');
+    var d = new Date(entry.dateISO);
+    var rows = INSPECTION_ITEMS.map(function(name){
+      var it = entry.inspection[name] || {status:null, brand:'', photos:{}};
+      var label = it.status || '—';
+      var cls = it.status || '';
+      var brandTxt = it.brand ? ' · ' + it.brand : '';
+      var line = '<div class="detail-line"><div class="k">'+name+brandTxt+'</div><div class="detail-status '+cls+'">'+label+'</div></div>';
+      if(it.status === 'BAD' && it.reason){
+        line += '<div style="font-size:12px; color:var(--bad); font-style:italic; padding:2px 0 4px;">Reason: '+escapeHtml(it.reason)+'</div>';
+      }
+      var photoKeys = Object.keys(it.photos || {});
+      if(photoKeys.length){
+        line += '<div style="display:flex; flex-wrap:wrap; gap:8px; padding:6px 0 10px;">';
+        photoKeys.forEach(function(k){
+          line += '<div style="flex:0 0 auto;"><img src="'+it.photos[k]+'" style="width:140px; border-radius:8px; border:1px solid var(--line); display:block;">'+
+            (photoKeys.length>1 ? '<div style="text-align:center; font-family:var(--mono); font-size:9px; color:var(--muted); margin-top:3px;">'+k+'</div>' : '')+
+            '</div>';
+        });
+        line += '</div>';
+      }
+      return line;
+    }).join('');
+
+    var toolsChecked = Object.keys(entry.tools).filter(function(k){return entry.tools[k];});
+    var toolsMissing = Object.keys(entry.tools).filter(function(k){return !entry.tools[k];});
+
+    box.innerHTML =
+      '<h3>'+ (entry.plate||'No Plate') +'</h3>'+
+      '<button type="button" id="detailDownloadBtn" class="btn btn-ghost" style="width:100%; margin-bottom:14px;">⬇ Download Report (CSV)</button>'+
+      '<div class="detail-line"><div class="k">Date</div><div>'+d.toLocaleString()+'</div></div>'+
+      '<div class="detail-line"><div class="k">Odometer</div><div>'+(entry.odometer ? entry.odometer + ' KM' : '—')+'</div></div>'+
+      '<div class="detail-line"><div class="k">Inspected By</div><div>'+(entry.inspectedBy||'—')+'</div></div>'+
+      '<div class="detail-line"><div class="k">Driver</div><div>'+(entry.driver||'—')+'</div></div>'+
+      '<div class="detail-line"><div class="k">Agency</div><div>'+(entry.agency||'—')+'</div></div>'+
+      '<div class="detail-line"><div class="k">Parking</div><div>'+entry.parking+'</div></div>'+
+      '<h3 style="margin-top:20px;">Inspection</h3>'+ rows +
+      '<h3 style="margin-top:20px;">Tools Present</h3>'+
+      '<div class="detail-line"><div class="k">Checked</div><div style="text-align:right; max-width:60%;">'+(toolsChecked.join(', ')||'None')+'</div></div>'+
+      '<div class="detail-line"><div class="k">Missing</div><div style="text-align:right; max-width:60%; color:var(--bad);">'+(toolsMissing.join(', ')||'None')+'</div></div>'+
+      (entry.remarks ? '<h3 style="margin-top:20px;">Remarks</h3><div style="font-size:13px; line-height:1.5; color:var(--text);">'+entry.remarks+'</div>' : '');
+
+    document.getElementById('detailDownloadBtn').addEventListener('click', function(){
+      downloadSingleEntryCsv(entry);
+    });
+
+    document.getElementById('detailOverlay').classList.add('show');
+  }
+
+  document.getElementById('detailClose').addEventListener('click', function(){
+    document.getElementById('detailOverlay').classList.remove('show');
+  });
+
+  // ---------- QR SCAN (Inspected By) ----------
+  // Uses the device camera + jsQR to read a QR code (e.g. an inspector's ID
+  // badge) and drop the decoded text straight into the Inspected By field.
+  // Falls back to manual typing if the camera isn't available or permission
+  // is denied — this needs HTTPS (or localhost) and browser camera access.
+  var qrStreamHandle = null;
+  var qrScanRAF = null;
+
+  function stopQRScanner(){
+    if(qrScanRAF){ cancelAnimationFrame(qrScanRAF); qrScanRAF = null; }
+    if(qrStreamHandle){
+      qrStreamHandle.getTracks().forEach(function(track){ track.stop(); });
+      qrStreamHandle = null;
+    }
+    document.getElementById('qrOverlay').classList.remove('show');
+  }
+
+  function scanQRFrame(video, canvas, ctx){
+    if(!qrStreamHandle) return; // scanner was stopped
+    if(video.readyState === video.HAVE_ENOUGH_DATA){
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      var code = (typeof jsQR === 'function') ? jsQR(imageData.data, imageData.width, imageData.height) : null;
+      if(code && code.data){
+        document.getElementById('inspectedBy').value = code.data;
+        showToast('Scanned: ' + code.data);
+        stopQRScanner();
+        return;
+      }
+    }
+    qrScanRAF = requestAnimationFrame(function(){ scanQRFrame(video, canvas, ctx); });
+  }
+
+  async function openQRScanner(){
+    var overlay = document.getElementById('qrOverlay');
+    var video = document.getElementById('qrVideo');
+    var status = document.getElementById('qrStatus');
+    var canvas = document.getElementById('qrCanvas');
+    var ctx = canvas.getContext('2d', {willReadFrequently: true});
+
+    overlay.classList.add('show');
+    status.textContent = 'Requesting camera access…';
+
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      status.textContent = 'Camera not available on this device/browser. Type the name instead.';
+      return;
+    }
+    if(typeof jsQR !== 'function'){
+      status.textContent = 'QR scanner failed to load (no internet?). Type the name instead.';
+      return;
+    }
+
+    try{
+      qrStreamHandle = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = qrStreamHandle;
+      await video.play();
+      status.textContent = 'Hold the QR code inside the frame';
+      scanQRFrame(video, canvas, ctx);
+    }catch(e){
+      console.error('camera access failed', e);
+      status.textContent = 'Camera access denied or unavailable. Type the name instead.';
+    }
+  }
+
+  document.getElementById('scanQRBtn').addEventListener('click', openQRScanner);
+  document.getElementById('qrCloseBtn').addEventListener('click', stopQRScanner);
+  document.getElementById('qrManualToggle').addEventListener('click', function(){
+    stopQRScanner();
+    document.getElementById('inspectedBy').focus();
+  });
+
+  // ---------- INIT ----------
+  buildInspectionList();
+  buildToolsList();
+  updateOdometer();
+  refreshRosterCache();
+  refreshAgencyCache();
+  showLoginOverlay();
+  if(usingFallbackStorage){
+    setTimeout(function(){ showToast('Local-only mode: history clears when tab closes'); }, 600);
+  }
+
+})();
+</script>
+
+</body>
+</html>
