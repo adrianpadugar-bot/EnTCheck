@@ -1483,6 +1483,77 @@
     showToast(res.sent ? 'Issue email sent' : 'Opening email draft…');
   });
 
+  // ---------- CHECKLIST INDEX ----------
+  // Summary, History and Occurence all need to look across every saved
+  // checklist, but full entries embed base64 photos and can be large, so
+  // they can't be batched into one blob the way roster/agency/mechanic are.
+  // Instead we keep a single shared key ('checklist-index') holding a
+  // lightweight copy of every entry (everything except each inspection
+  // item's photos) that's updated on every save/delete. Summary/History/
+  // Occurence read this one key instead of listing every 'checklist:*' key
+  // and fetching each one individually — that per-key loop is what made
+  // those tabs slow and is only still used here as a one-time fallback if
+  // the index key doesn't exist yet (e.g. the very first run after this
+  // change, before any save/delete has populated it).
+  var checklistIndexCache = [];
+
+  function buildLightEntry(entry){
+    var lightInspection = {};
+    Object.keys(entry.inspection || {}).forEach(function(name){
+      var it = entry.inspection[name] || {};
+      lightInspection[name] = {status: it.status, brand: it.brand, reason: it.reason};
+    });
+    return {
+      id: entry.id,
+      dateISO: entry.dateISO,
+      plate: entry.plate,
+      odometer: entry.odometer,
+      inspectedBy: entry.inspectedBy,
+      driver: entry.driver,
+      agency: entry.agency,
+      parking: entry.parking,
+      inspection: lightInspection,
+      tools: entry.tools,
+      remarks: entry.remarks
+    };
+  }
+
+  async function saveChecklistIndex(){
+    await storageAPI.set('checklist-index', JSON.stringify(checklistIndexCache), true);
+  }
+
+  // One-time fallback: walks every existing 'checklist:*' key (in parallel,
+  // not one-at-a-time) and builds the index from scratch. Only runs when no
+  // index key is found yet — after that, saves/deletes keep it up to date.
+  async function migrateChecklistIndex(){
+    try{
+      var keysRes = await storageAPI.list('checklist:', true);
+      var keys = (keysRes && keysRes.keys) ? keysRes.keys : [];
+      var results = await Promise.all(keys.map(function(k){
+        return storageAPI.get(k, true).catch(function(){ return null; });
+      }));
+      var lightEntries = [];
+      results.forEach(function(r){
+        if(!r || !r.value) return;
+        try{ lightEntries.push(buildLightEntry(JSON.parse(r.value))); }catch(e){}
+      });
+      checklistIndexCache = lightEntries;
+      await saveChecklistIndex();
+    }catch(e){
+      checklistIndexCache = checklistIndexCache || [];
+    }
+  }
+
+  async function refreshChecklistIndexCache(){
+    try{
+      var r = await storageAPI.get('checklist-index', true);
+      checklistIndexCache = (r && r.value) ? JSON.parse(r.value) : [];
+    }catch(e){
+      // No index saved yet — build it once from whatever full entries exist.
+      await migrateChecklistIndex();
+    }
+  }
+
   // ---------- SAVE ----------
   document.getElementById('saveBtn').addEventListener('click', async function(){
     var plate = getPlateValue();
@@ -1543,6 +1614,11 @@
     try{
       var res = await storageAPI.set('checklist:' + entry.id, entryJson, true);
       if(!res){ showToast('Save failed, try again'); return; }
+      try{
+        await refreshChecklistIndexCache(); // pull latest in case another device saved/deleted meanwhile
+        checklistIndexCache.push(buildLightEntry(entry));
+        await saveChecklistIndex();
+      }catch(e){ console.error('Checklist index update failed', e); }
       if(issuePayload){
         var emailRes = await sendIssueEmail(issuePayload);
         showToast((usingFallbackStorage ? 'Saved (this tab only)' : 'Checklist saved') + (emailRes.sent ? ' — issue email sent' : ' — issue email opened'));
@@ -1687,23 +1763,15 @@
     var list = document.getElementById('historyList');
     list.innerHTML = '<div class="empty-state">Loading...</div>';
     try{
-      var keysRes = await storageAPI.list('checklist:', true);
-      var keys = (keysRes && keysRes.keys) ? keysRes.keys : [];
-      if(!keys.length){
+      await refreshChecklistIndexCache();
+      if(!checklistIndexCache.length){
         historyEntriesCache = [];
         populateHistoryPlateFilter();
         list.innerHTML = '<div class="empty-state">No saved checklists yet.<br>Submit one to see it here.</div>';
         document.getElementById('historyResultCount').textContent = '';
         return;
       }
-      var entries = [];
-      for(var i=0;i<keys.length;i++){
-        try{
-          var r = await storageAPI.get(keys[i], true);
-          if(r && r.value) entries.push(JSON.parse(r.value));
-        }catch(e){}
-      }
-      entries.sort(function(a,b){ return b.id - a.id; });
+      var entries = checklistIndexCache.slice().sort(function(a,b){ return b.id - a.id; });
 
       historyEntriesCache = entries;
       populateHistoryPlateFilter();
@@ -1711,6 +1779,20 @@
     }catch(e){
       list.innerHTML = '<div class="empty-state">Could not load history.</div>';
       console.error(e);
+    }
+  }
+
+  // History cards render from the lightweight index (no photos), so a full
+  // fetch of just this one entry happens on demand when it's opened — one
+  // round trip for the entry being viewed, not all of them.
+  async function openHistoryDetail(lightEntry){
+    try{
+      var r = await storageAPI.get('checklist:' + lightEntry.id, true);
+      if(!r || !r.value){ showToast('This checklist could not be found — it may have been removed.'); return; }
+      showDetail(JSON.parse(r.value));
+    }catch(e){
+      console.error(e);
+      showToast('Could not load checklist details');
     }
   }
 
@@ -1786,7 +1868,7 @@
 
       card.addEventListener('click', function(ev){
         if(ev.target.classList.contains('history-del') || ev.target.classList.contains('history-dl')) return;
-        showDetail(entry);
+        openHistoryDetail(entry);
       });
       card.querySelector('.history-dl').addEventListener('click', function(ev){
         ev.stopPropagation();
@@ -1796,6 +1878,11 @@
         ev.stopPropagation();
         if(!confirm('Delete this checklist?')) return;
         await storageAPI.delete('checklist:' + entry.id, true);
+        try{
+          await refreshChecklistIndexCache();
+          checklistIndexCache = checklistIndexCache.filter(function(e){ return e.id !== entry.id; });
+          await saveChecklistIndex();
+        }catch(e){ console.error('Checklist index update failed', e); }
         loadHistory();
       });
 
@@ -1967,20 +2054,16 @@
         rosterPlatesByParking[p].push(plate);
       });
 
-      var keysRes = await storageAPI.list('checklist:', true);
-      var keys = (keysRes && keysRes.keys) ? keysRes.keys : [];
+      await refreshChecklistIndexCache();
       var checkedByParking = {}; // parking -> {normalizedPlate: true}
       var flaggedDetailsByParking = {}; // parking -> {normalizedPlate: [{item, reason, brand}]}
 
-      for(var i=0;i<keys.length;i++){
+      checklistIndexCache.forEach(function(entry){
         try{
-          var r = await storageAPI.get(keys[i], true);
-          if(!r || !r.value) continue;
-          var entry = JSON.parse(r.value);
-          if(new Date(entry.dateISO).toDateString() !== targetDateStr) continue;
+          if(new Date(entry.dateISO).toDateString() !== targetDateStr) return;
           var p = entry.parking;
           var plate = normalizePlate(entry.plate);
-          if(!p || !plate) continue;
+          if(!p || !plate) return;
 
           checkedByParking[p] = checkedByParking[p] || {};
           checkedByParking[p][plate] = true;
@@ -2001,7 +2084,7 @@
             });
           }
         }catch(e){}
-      }
+      });
 
       var allParkings = PARKING_LOCATIONS.slice();
       Object.keys(totals).forEach(function(p){ if(allParkings.indexOf(p) === -1) allParkings.push(p); });
@@ -2071,22 +2154,18 @@
     var list = document.getElementById('topDriversList');
     list.innerHTML = '<div class="empty-state">Loading...</div>';
     try{
-      var keysRes = await storageAPI.list('checklist:', true);
-      var keys = (keysRes && keysRes.keys) ? keysRes.keys : [];
+      await refreshChecklistIndexCache();
       var driverStats = {}; // normalized driver key -> {name, agency, count, reasons:{label:count}}
 
-      for(var i=0;i<keys.length;i++){
+      checklistIndexCache.forEach(function(entry){
         try{
-          var r = await storageAPI.get(keys[i], true);
-          if(!r || !r.value) continue;
-          var entry = JSON.parse(r.value);
           var driverName = (entry.driver || '').trim();
-          if(!driverName) continue;
+          if(!driverName) return;
 
           var badItems = Object.keys(entry.inspection || {}).filter(function(name){
             return entry.inspection[name] && entry.inspection[name].status === 'BAD';
           });
-          if(!badItems.length) continue;
+          if(!badItems.length) return;
 
           var key = driverName.toLowerCase();
           driverStats[key] = driverStats[key] || {name: driverName, agency: (entry.agency||'').trim(), count: 0, reasons: {}};
@@ -2100,7 +2179,7 @@
             driverStats[key].reasons[label] = (driverStats[key].reasons[label] || 0) + 1;
           });
         }catch(e){}
-      }
+      });
 
       var ranked = Object.keys(driverStats).map(function(k){ return driverStats[k]; });
       ranked.sort(function(a,b){ return b.count - a.count; });
@@ -2147,22 +2226,18 @@
     var list = document.getElementById('topAgenciesList');
     list.innerHTML = '<div class="empty-state">Loading...</div>';
     try{
-      var keysRes = await storageAPI.list('checklist:', true);
-      var keys = (keysRes && keysRes.keys) ? keysRes.keys : [];
+      await refreshChecklistIndexCache();
       var agencyStats = {}; // normalized agency key -> {name, count, plates:Set-ish, reasons:{label:count}}
 
-      for(var i=0;i<keys.length;i++){
+      checklistIndexCache.forEach(function(entry){
         try{
-          var r = await storageAPI.get(keys[i], true);
-          if(!r || !r.value) continue;
-          var entry = JSON.parse(r.value);
           var agencyName = (entry.agency || '').trim();
-          if(!agencyName) continue;
+          if(!agencyName) return;
 
           var badItems = Object.keys(entry.inspection || {}).filter(function(name){
             return entry.inspection[name] && entry.inspection[name].status === 'BAD';
           });
-          if(!badItems.length) continue;
+          if(!badItems.length) return;
 
           var key = agencyName.toLowerCase();
           agencyStats[key] = agencyStats[key] || {name: agencyName, count: 0, plates: {}, reasons: {}};
@@ -2177,7 +2252,7 @@
             agencyStats[key].reasons[label] = (agencyStats[key].reasons[label] || 0) + 1;
           });
         }catch(e){}
-      }
+      });
 
       var ranked = Object.keys(agencyStats).map(function(k){ return agencyStats[k]; });
       ranked.sort(function(a,b){ return b.count - a.count; });
