@@ -142,7 +142,6 @@
     position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; background:rgba(10,12,16,0.8);
     color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; cursor:pointer; border:none;
   }
-  .brand-row{margin-top:10px;}
   .reason-row{margin-top:10px;}
   .reason-label{
     display:block; font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--bad);
@@ -158,13 +157,6 @@
     min-height:auto; resize:none; cursor:pointer;
     appearance:none; -webkit-appearance:none;
     background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e5484d' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
-    background-repeat:no-repeat; background-position:right 10px center; background-size:14px; padding-right:30px;
-  }
-  .brand-row select{
-    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
-    padding:9px 10px; border-radius:6px; font-family:var(--body); font-size:13.5px;
-    appearance:none; -webkit-appearance:none;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2392a0b3' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
     background-repeat:no-repeat; background-position:right 10px center; background-size:14px; padding-right:30px;
   }
 
@@ -350,6 +342,10 @@
   .qr-status{font-size:12px; color:var(--muted); margin-top:12px; min-height:16px;}
   .qr-manual-toggle{background:none; border:none; color:var(--amber); font-family:var(--mono); font-size:11px; text-decoration:underline; cursor:pointer; margin-top:14px;}
 
+  /* STEP-BY-STEP GATING */
+  .gated-locked{position:relative; opacity:.4;}
+  .gated-locked::after{content:''; position:absolute; inset:0; z-index:6; cursor:not-allowed;}
+
   /* DAILY RUNNING LIST */
   .dl-stats{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px;}
   .dl-stat{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 8px; text-align:center;}
@@ -416,7 +412,6 @@
     <div class="tab active" data-tab="checklist">Checklist</div>
     <div class="tab" data-tab="roster">Roster</div>
     <div class="tab" data-tab="summary">Summary</div>
-    <div class="tab" data-tab="occurence">Occurence</div>
     <div class="tab" data-tab="history">History</div>
   </div>
 
@@ -435,7 +430,13 @@
         </div>
       </div>
       <div class="field full">
-        <label>Parking Location</label>
+        <label>Truck Plate No. (today's running list)</label>
+        <input type="text" id="plate" list="plateList" placeholder="Type or pick plate no." autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;">
+        <datalist id="plateList"></datalist>
+        <div id="plateHint" style="font-size:11.5px; margin-top:5px; min-height:14px;"></div>
+      </div>
+      <div class="field full">
+        <label>Parking Location (auto-filled from plate)</label>
         <select id="parking">
           <option value="">Select parking</option>
           <option>SOC 8</option>
@@ -447,27 +448,18 @@
           <option>BOCAUE</option>
         </select>
       </div>
-      <div class="field full">
-        <label>Truck Plate No.</label>
-        <select id="plate" disabled>
-          <option value="">Select parking location first</option>
-        </select>
-        <input type="text" id="plateOther" placeholder="Enter plate number" style="display:none; margin-top:8px;">
+      <div class="field">
+        <label>Driver Name</label>
+        <input type="text" id="driver" placeholder="Type full name" autocapitalize="words" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Agency</label>
+        <select id="agency"><option value="">Select agency</option></select>
+        <input type="text" id="agencyOther" placeholder="Type agency name" autocapitalize="words" autocomplete="off" style="display:none; margin-top:8px;">
       </div>
       <div class="field full">
         <label>Odometer Reading (KM)</label>
         <input type="number" id="odometerInput" inputmode="numeric" min="0" placeholder="e.g. 128450">
-      </div>
-      <div class="field">
-        <label>Driver Name</label>
-        <input type="text" id="driver" placeholder="Full name">
-      </div>
-      <div class="field">
-        <label>Agency</label>
-        <select id="agency">
-          <option value="">Select agency</option>
-        </select>
-        <input type="text" id="agencyOther" placeholder="Enter agency name" style="display:none; margin-top:8px;">
       </div>
     </div>
 
@@ -545,7 +537,7 @@
           <input type="text" id="dlSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv">
         </div>
         <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--muted); margin-bottom:10px;">
-          <input type="checkbox" id="dlAutoDeclare"> Auto-declare today's list from the sheet (no admin action needed)
+          <input type="checkbox" id="dlAutoDeclare"> Auto-declare &amp; auto-refresh today's list from the sheet (every 5 min; a new day starts a new list automatically)
         </label>
         <div style="display:flex; gap:8px;">
           <button class="btn btn-ghost" id="dlSheetSaveBtn" style="flex:1;">Save Link</button>
@@ -561,48 +553,6 @@
         <button class="btn btn-ghost" id="dlReopenBtn" style="display:none;">Re-open</button>
       </div>
       <div class="history-list" id="dlList"></div>
-    </div>
-
-    <div class="section" style="padding-top:16px;">
-      <div class="section-head">
-        <div class="bar"></div>
-        <h2 id="rosterFormTitle">Add Truck</h2>
-      </div>
-      <div class="meta" style="padding:0; margin-bottom:10px;">
-        <div class="field full">
-          <label>Truck Plate No.</label>
-          <input type="text" id="rosterPlateInput" placeholder="e.g. ABC 1234" autocapitalize="characters">
-        </div>
-        <div class="field full">
-          <label>Parking Location</label>
-          <select id="rosterParkingInput">
-            <option value="">Select parking</option>
-          </select>
-        </div>
-      </div>
-      <div style="display:flex; gap:8px;">
-        <button id="rosterSaveBtn" class="btn btn-primary" style="flex:1;">Add To Roster</button>
-        <button id="rosterCancelBtn" class="btn btn-ghost" style="display:none;">Cancel</button>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-head">
-        <div class="bar"></div>
-        <h2>Truck Bulk Upload</h2>
-      </div>
-      <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px; line-height:1.5;">
-        One truck per line: <span style="color:var(--text); font-family:var(--mono);">PLATE, PARKING LOCATION</span><br>
-        Existing plates get updated; new plates get added.
-      </div>
-      <textarea id="rosterBulkInput" style="min-height:100px;" placeholder="ABC 1234, SOC 8&#10;XYZ 5678, BOCAUE"></textarea>
-      <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
-        <label class="btn btn-ghost" style="flex:0 0 auto; text-align:center; cursor:pointer;">
-          Choose File
-          <input type="file" id="rosterFileInput" accept=".csv,.txt" style="display:none;">
-        </label>
-        <button id="rosterImportBtn" class="btn btn-primary" style="flex:1;">Import</button>
-      </div>
     </div>
 
     <div class="section">
@@ -637,7 +587,7 @@
         <h2>Agency Bulk Upload</h2>
       </div>
       <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px; line-height:1.5;">
-        One agency per line.
+        One agency per line. Existing names are kept, new ones are added.
       </div>
       <textarea id="agencyBulkInput" style="min-height:80px;" placeholder="ABC Logistics&#10;XYZ Freight"></textarea>
       <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
@@ -727,27 +677,6 @@
         </div>
       </div>
       <div id="summaryList"></div>
-    </div>
-  </div>
-
-  <!-- ===================== OCCURENCE VIEW ===================== -->
-  <div class="view" id="view-occurence">
-    <div class="section" style="padding-top:16px;">
-      <div class="section-head">
-        <div class="bar"></div>
-        <h2>Top 5 Drivers — Flagged</h2>
-        <div class="count">All Time</div>
-      </div>
-      <div id="topDriversList"></div>
-    </div>
-
-    <div class="section" style="padding-top:8px;">
-      <div class="section-head">
-        <div class="bar"></div>
-        <h2>Top 5 Agencies — Flagged</h2>
-        <div class="count">All Time</div>
-      </div>
-      <div id="topAgenciesList"></div>
     </div>
   </div>
 
@@ -956,8 +885,6 @@
 
   var PARKING_LOCATIONS = ["SOC 8","SOC 5 EP","SOC 11","SOC 6","SOC 6 EP","FM","BOCAUE"];
 
-  var TIRE_BRANDS = ["Gajah Tunggal","Yokohama","Giti","GT Radial","Good Year","Triangle","Double Star","Bridgestone","Chao Yang"];
-  var BATTERY_BRANDS = ["Motolite","Chloride","Amaron","Century","Tuflong"];
 
   // For these items, NOT OK reason is chosen from a fixed dropdown instead of free text.
   var REASON_OPTIONS = {
@@ -969,8 +896,7 @@
   };
 
   // These items always require a photo, even when marked OK.
-  var ALWAYS_PHOTO_ITEMS = ["BODY DAMAGES","BATTERY","TIRES","SPARE TIRE","DIESEL TANK CAP"];
-
+  
   // Body Damages needs 4 separate angle shots instead of one photo.
   var BODY_DAMAGE_ANGLES = ["FRONT","LEFT","RIGHT","BACK"];
 
@@ -998,7 +924,7 @@
   }
 
   // Builds the mailto subject/body from live or saved form data.
-  function buildIssueEmailPayload(plate, inspectedBy, driver, parking, inspection, remarks, when){
+  function buildIssueEmailPayload(plate, inspectedBy, driver, agency, parking, inspection, remarks, when){
     var flagged = CRITICAL_EMAIL_ITEMS.filter(function(n){
       return inspection[n] && inspection[n].status === 'BAD';
     });
@@ -1006,9 +932,8 @@
 
     var issuesText = flagged.map(function(name){
       var it = inspection[name];
-      var brandTxt = it.brand ? ' (' + it.brand + ')' : '';
       var reasonTxt = (it.reason && it.reason.trim()) ? ' — ' + it.reason.trim() : ' — no reason entered';
-      return name + brandTxt + reasonTxt;
+      return name + reasonTxt;
     }).join('\n  ');
 
     // Gather photos from the flagged items only, in order, capped at
@@ -1036,6 +961,7 @@
       'Plate #: ' + (plate || '') + '\n' +
       'Inspected By: ' + (inspectedBy || '') + '\n' +
       'Driver Name: ' + (driver || '') + '\n' +
+      'Agency: ' + (agency || '') + '\n' +
       'Parking: ' + (parking || '') + '\n' +
       'Flagged Issue:\n  ' + issuesText + '\n\n' +
       (remarks ? ('Remarks: ' + remarks + '\n\n') : '') +
@@ -1050,6 +976,7 @@
       flagged: flagged,
       plate: plate || '',
       driver: driver || '',
+      agency: agency || '',
       parking: parking || '',
       issuesText: issuesText,
       remarks: remarks || '',
@@ -1078,6 +1005,7 @@
           message: payload.body,
           plate: payload.plate,
           driver: payload.driver,
+          agency: payload.agency,
           parking: payload.parking,
           flagged_issues: payload.issuesText,
           remarks: payload.remarks
@@ -1103,22 +1031,22 @@
   }
 
   var state = {
-    inspection: {},   // name -> {status: 'OK'|'BAD'|'NA', brand: optional, photos: {key: dataURL}}
+    inspection: {},   // name -> {status: 'OK'|'BAD'|'NA', photos: {key: dataURL}}
     tools: {}         // name -> bool
   };
 
   var checkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="#1a1408" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
   var cameraIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
 
-  function requiredPhotoKeys(name, status){
-    if(name === 'BODY DAMAGES'){
-      return (status === 'OK' || status === 'BAD') ? BODY_DAMAGE_ANGLES.slice() : [];
-    }
-    if(name === 'DIESEL TANK CAP'){
-      return (status === 'OK' || status === 'BAD') ? DIESEL_TANK_ANGLES.slice() : [];
-    }
-    if(ALWAYS_PHOTO_ITEMS.indexOf(name) !== -1 && (status === 'OK' || status === 'BAD')) return ['PHOTO'];
-    return [];
+  // A photo is only required when the item is NOT OK AND the declared reason is
+  // "Missing" or "Replaced" (dropdown choice or typed text, any item).
+  function reasonNeedsPhoto(reason){
+    return /\b(missing|replace\w*)/i.test(String(reason || ''));
+  }
+  function requiredPhotoKeys(name, status, reason){
+    if(status !== 'BAD' || !reasonNeedsPhoto(reason)) return [];
+    if(name === 'DIESEL TANK CAP') return DIESEL_TANK_ANGLES.slice();
+    return ['PHOTO'];
   }
 
   // ---- Geolocation + reverse geocoding ----
@@ -1224,14 +1152,11 @@
     var container = document.getElementById('inspectionList');
     container.innerHTML = '';
     INSPECTION_ITEMS.forEach(function(name){
-      state.inspection[name] = state.inspection[name] || {status:null, brand:'', photos:{}, reason:''};
+      state.inspection[name] = state.inspection[name] || {status:null, photos:{}, reason:''};
       var item = document.createElement('div');
       item.className = 'item';
 
-      var needsBrand = (name === 'TIRES' || name === 'BATTERY');
-      var brandOptions = name === 'TIRES' ? TIRE_BRANDS : (name === 'BATTERY' ? BATTERY_BRANDS : []);
-      var alwaysPhoto = ALWAYS_PHOTO_ITEMS.indexOf(name) !== -1;
-      var hint = name === 'BODY DAMAGES' ? '(4 photos: front, left, right, back)' : (name === 'DIESEL TANK CAP' ? '(2 photos: cap, drain plug)' : (alwaysPhoto ? '(photo required)' : ''));
+      var hint = '';
 
       item.innerHTML =
         '<div class="item-top"><div class="item-name">'+name+(hint ? ' <span style="color:var(--muted); font-weight:400; font-size:10px;">'+hint+'</span>' : '')+'</div></div>'+
@@ -1240,9 +1165,6 @@
           '<div class="status-btn bad" data-status="BAD">NOT OK</div>'+
           '<div class="status-btn na" data-status="NA">N/A</div>'+
         '</div>'+
-        (needsBrand ? '<div class="brand-row"><select data-brand="1"><option value="">Select brand</option>'+
-          brandOptions.map(function(b){return '<option value="'+b+'">'+b+'</option>';}).join('')+
-          '</select></div>' : '') +
         '<div class="reason-slot"></div>'+
         '<div class="photo-slot"></div>';
 
@@ -1250,6 +1172,7 @@
       btns.forEach(function(btn){
         btn.addEventListener('click', function(){
           state.inspection[name].status = btn.getAttribute('data-status');
+          if(state.inspection[name].status !== 'BAD') state.inspection[name].photos = {}; // photos only belong to NOT OK items
           btns.forEach(function(b){b.classList.remove('active');});
           btn.classList.add('active');
           renderReasonSlot(name, item);
@@ -1257,13 +1180,6 @@
           updateOdometer();
         });
       });
-
-      if(needsBrand){
-        var sel = item.querySelector('select[data-brand]');
-        sel.addEventListener('change', function(){
-          state.inspection[name].brand = sel.value;
-        });
-      }
 
       container.appendChild(item);
       renderReasonSlot(name, item);
@@ -1296,7 +1212,9 @@
 
       var sel = slot.querySelector('.reason-input');
       sel.addEventListener('change', function(){
+        var before = reasonNeedsPhoto(data.reason);
         data.reason = sel.value;
+        if(before !== reasonNeedsPhoto(data.reason)) renderPhotoSlot(name, itemEl);
         renderNotOkSummary();
       });
       return;
@@ -1310,7 +1228,9 @@
 
     var input = slot.querySelector('.reason-input');
     input.addEventListener('input', function(){
+      var before = reasonNeedsPhoto(data.reason);
       data.reason = input.value;
+      if(before !== reasonNeedsPhoto(data.reason)) renderPhotoSlot(name, itemEl);
       renderNotOkSummary();
     });
   }
@@ -1318,11 +1238,15 @@
   function renderPhotoSlot(name, itemEl){
     var slot = itemEl.querySelector('.photo-slot');
     var data = state.inspection[name];
-    var required = requiredPhotoKeys(name, data.status);
+    var required = requiredPhotoKeys(name, data.status, data.reason);
     var existingKeys = Object.keys(data.photos || {});
 
-    if(!required.length && !existingKeys.length){
-      slot.innerHTML = '';
+    if(!required.length){
+      // Not required (or reason changed): drop stale photos, show a hint while NOT OK.
+      data.photos = {};
+      slot.innerHTML = data.status === 'BAD'
+        ? '<div style="font-size:11px; color:var(--muted); margin-top:8px;">Photo required if the reason is Missing or Replaced.</div>'
+        : '';
       return;
     }
 
@@ -1404,7 +1328,6 @@
       var it = state.inspection[name];
       var isCritical = CRITICAL_EMAIL_ITEMS.indexOf(name) !== -1;
       var photoKeys = Object.keys(it.photos || {});
-      var brandTxt = it.brand ? '<div class="notok-brand">Brand: ' + it.brand + '</div>' : '';
       var reasonTxt = (it.reason && it.reason.trim())
         ? '<div class="notok-reason">"' + escapeHtml(it.reason.trim()) + '"</div>'
         : '<div class="notok-reason missing">No reason entered yet</div>';
@@ -1414,7 +1337,7 @@
       var flagLabel = isCritical ? 'NOT OK · EMAIL' : 'NOT OK';
       return '<div class="notok-card">'+
           '<div class="notok-top"><div class="notok-name">'+name+'</div><div class="notok-flag">'+flagLabel+'</div></div>'+
-          brandTxt + reasonTxt + photosHtml +
+          reasonTxt + photosHtml +
         '</div>';
     }).join('');
 
@@ -1475,6 +1398,90 @@
     });
   }
 
+  // ---------- STEP-BY-STEP GATING ----------
+  // Each field/section stays locked until the one before it has input:
+  // Inspected By -> Plate -> Parking -> Odometer -> inspection items (one at a
+  // time, in order) -> Tools + Remarks.
+  function setGate(el, locked, msg){
+    if(!el) return;
+    el.classList.toggle('gated-locked', !!locked);
+    el.setAttribute('data-gate-msg', locked ? msg : '');
+  }
+
+  function applyGating(){
+    var byEl = document.getElementById('inspectedBy');
+    var plateEl = document.getElementById('plate');
+    var pkEl = document.getElementById('parking');
+    var odoEl = document.getElementById('odometerInput');
+    var remarksEl = document.getElementById('remarks');
+    if(!byEl || !plateEl || !pkEl || !odoEl) return;
+
+    var hasBy = !!byEl.value.trim();
+    var hasPlate = !!plateEl.value.trim();
+    var hasPk = !!pkEl.value;
+    var hasOdo = !!odoEl.value.trim();
+    var drvEl = document.getElementById('driver'), agyEl = document.getElementById('agency');
+    var hasDrv = !!drvEl.value.trim(), hasAgy = !!getAgencyValue();
+
+    var plateLocked = !hasBy;
+    var pkLocked = !hasPlate;
+    var drvLocked = !hasPk;
+    var agyLocked = !hasDrv;
+    var odoLocked = !hasAgy;
+    setGate(plateEl.closest('.field'), plateLocked, 'Enter "Inspected By" first');
+    setGate(pkEl.closest('.field'), pkLocked, 'Enter the truck plate no. first');
+    setGate(drvEl.closest('.field'), drvLocked, 'Select the parking location first');
+    setGate(agyEl.closest('.field'), agyLocked, 'Enter the driver name first');
+    setGate(odoEl.closest('.field'), odoLocked, 'Select the agency first');
+    drvEl.disabled = drvLocked;
+    agyEl.disabled = agyLocked;
+    document.getElementById('agencyOther').disabled = agyLocked;
+    plateEl.disabled = plateLocked;
+    pkEl.disabled = pkLocked || parkingAutoFilled;
+    odoEl.disabled = odoLocked;
+
+    var headerMsg = !hasBy ? 'Enter "Inspected By" first'
+      : !hasPlate ? 'Enter the truck plate no. first'
+      : !hasPk ? 'Select the parking location first'
+      : !hasDrv ? 'Enter the driver name first'
+      : !hasAgy ? 'Select the agency first'
+      : !hasOdo ? 'Enter the odometer reading first' : '';
+
+    var list = document.getElementById('inspectionList');
+    var allDone = true;
+    INSPECTION_ITEMS.forEach(function(name, i){
+      var done = !!(state.inspection[name] && state.inspection[name].status);
+      if(!done) allDone = false;
+      var itemEl = list.children[i];
+      if(!itemEl) return;
+      var prevName = i > 0 ? INSPECTION_ITEMS[i-1] : null;
+      var prevDone = !prevName || !!(state.inspection[prevName] && state.inspection[prevName].status);
+      var msg = headerMsg || (prevDone ? '' : 'Mark ' + prevName + ' first');
+      setGate(itemEl, !!msg, msg);
+    });
+
+    var afterMsg = 'Mark all inspection items first';
+    var toolsSec = document.getElementById('toolList').closest('.section');
+    var remarksSec = remarksEl.closest('.section');
+    setGate(toolsSec, !allDone || !!headerMsg, headerMsg || afterMsg);
+    setGate(remarksSec, !allDone || !!headerMsg, headerMsg || afterMsg);
+    remarksEl.disabled = !allDone || !!headerMsg;
+  }
+
+  // Tapping a locked field explains what to fill in first.
+  document.addEventListener('click', function(ev){
+    var locked = ev.target.closest && ev.target.closest('.gated-locked');
+    if(!locked) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    showToast(locked.getAttribute('data-gate-msg') || 'Fill in the previous field first');
+  }, true);
+
+  ['inspectedBy','odometerInput'].forEach(function(id){
+    document.getElementById(id).addEventListener('input', applyGating);
+  });
+  document.getElementById('parking').addEventListener('change', applyGating);
+
   function updateOdometer(){
     var total = INSPECTION_ITEMS.length;
     var cleared = 0, flagged = 0;
@@ -1493,6 +1500,7 @@
     document.getElementById('toolCount').textContent = toolsChecked + '/' + TOOLS.length;
 
     renderNotOkSummary();
+    applyGating();
   }
 
   function tick(){
@@ -1511,15 +1519,16 @@
 
   function resetForm(){
     document.getElementById('inspectedBy').value = '';
-    document.getElementById('driver').value = '';
     document.getElementById('parking').value = '';
+    document.getElementById('parking').disabled = false;
     document.getElementById('remarks').value = '';
-    document.getElementById('plateOther').value = '';
-    document.getElementById('plateOther').style.display = 'none';
+    document.getElementById('plate').value = '';
+    parkingAutoFilled = false;
     document.getElementById('odometerInput').value = '';
+    document.getElementById('driver').value = '';
     document.getElementById('agency').value = '';
     document.getElementById('agencyOther').value = '';
-    document.getElementById('agencyOther').style.display = 'none';
+    rebuildAgencyOptions();
     rebuildPlateOptions();
     state.inspection = {};
     state.tools = {};
@@ -1536,7 +1545,8 @@
     var payload = buildIssueEmailPayload(
       getPlateValue(),
       document.getElementById('inspectedBy').value.trim(),
-      document.getElementById('driver').value.trim(),
+      toProperCase(document.getElementById('driver').value).replace(/\s+/g,' ').trim(),
+      getAgencyValue(),
       document.getElementById('parking').value,
       state.inspection,
       document.getElementById('remarks').value.trim(),
@@ -1566,7 +1576,7 @@
     var lightInspection = {};
     Object.keys(entry.inspection || {}).forEach(function(name){
       var it = entry.inspection[name] || {};
-      lightInspection[name] = {status: it.status, brand: it.brand, reason: it.reason};
+      lightInspection[name] = {status: it.status, reason: it.reason};
     });
     return {
       id: entry.id,
@@ -1624,8 +1634,8 @@
     var plate = getPlateValue();
     var parking = document.getElementById('parking').value;
 
+    if(!plate){ showToast('Enter truck plate no.'); document.getElementById('plate').focus(); return; }
     if(!parking){ showToast('Select parking location'); document.getElementById('parking').focus(); return; }
-    if(!plate){ showToast('Select or enter truck plate no.'); document.getElementById('plate').focus(); return; }
 
     var unchecked = INSPECTION_ITEMS.filter(function(n){ return !state.inspection[n].status; });
     if(unchecked.length){
@@ -1643,7 +1653,7 @@
 
     var missingPhotos = INSPECTION_ITEMS.filter(function(n){
       var it = state.inspection[n];
-      var need = requiredPhotoKeys(n, it.status);
+      var need = requiredPhotoKeys(n, it.status, it.reason);
       return need.some(function(k){ return !it.photos[k]; });
     });
     if(missingPhotos.length){
@@ -1657,7 +1667,7 @@
       plate: plate,
       odometer: document.getElementById('odometerInput').value.trim(),
       inspectedBy: document.getElementById('inspectedBy').value.trim(),
-      driver: document.getElementById('driver').value.trim(),
+      driver: toProperCase(document.getElementById('driver').value).replace(/\s+/g,' ').trim(),
       agency: getAgencyValue(),
       parking: parking,
       inspection: JSON.parse(JSON.stringify(state.inspection)),
@@ -1673,7 +1683,7 @@
     }
 
     var issuePayload = buildIssueEmailPayload(
-      entry.plate, entry.inspectedBy, entry.driver, entry.parking, entry.inspection, entry.remarks, new Date(entry.dateISO)
+      entry.plate, entry.inspectedBy, entry.driver, entry.agency, entry.parking, entry.inspection, entry.remarks, new Date(entry.dateISO)
     );
 
     try{
@@ -1719,7 +1729,7 @@
     isAdmin = admin;
     document.getElementById('loginOverlay').style.display = 'none';
     document.querySelector('.tab[data-tab="roster"]').style.display = admin ? '' : 'none';
-    document.getElementById('roleIndicator').textContent = (admin ? 'ADMIN' : 'DRIVER') + ' · Log Out';
+    document.getElementById('roleIndicator').textContent = (admin ? 'ADMIN' : 'MECHANIC / CHECKER') + ' · Log Out';
     if(!admin && document.getElementById('view-roster').classList.contains('active')){
       document.querySelector('.tab[data-tab="checklist"]').click();
     }
@@ -1778,7 +1788,6 @@
     if(name === 'history') loadHistory();
     if(name === 'roster' && isAdmin){ loadDailyList(); loadRosterList(); loadAgencyList(); loadMechanicList(); }
     if(name === 'summary') loadSummary();
-    if(name === 'occurence'){ loadTopFlaggedDrivers(); loadTopFlaggedAgencies(); }
   }
 
   document.querySelectorAll('.tab').forEach(function(tab){
@@ -1806,7 +1815,7 @@
     var activeTab = document.querySelector('.tab.active');
     var activeName = activeTab ? activeTab.getAttribute('data-tab') : '';
     // Skip the direct calls here when the Roster tab is open — loadRosterList/
-    // loadAgencyList/loadMechanicList (called via refreshActiveView below)
+    // loadMechanicList (called via refreshActiveView below)
     // already refresh those same caches, so this avoids doubling the calls.
     if(activeName !== 'roster'){
       refreshRosterCache();
@@ -2008,10 +2017,10 @@
     rows.push(['Inspected By', entry.inspectedBy || '']);
     rows.push(['Odometer (KM)', entry.odometer || '']);
     rows.push([]);
-    rows.push(['Item','Status','Brand','Reason']);
+    rows.push(['Item','Status','Reason']);
     INSPECTION_ITEMS.forEach(function(name){
-      var it = entry.inspection[name] || {status:'', brand:'', reason:''};
-      rows.push([name, it.status || '', it.brand || '', it.reason || '']);
+      var it = entry.inspection[name] || {status:'', reason:''};
+      rows.push([name, it.status || '', it.reason || '']);
     });
     rows.push([]);
     var toolsChecked = Object.keys(entry.tools || {}).filter(function(k){return entry.tools[k];});
@@ -2055,10 +2064,9 @@
       ? plates.map(function(plate){
           var items = detailsByPlate[plate] || [];
           var itemsHtml = items.map(function(it){
-            var brandTxt = it.brand ? ' ('+escapeHtml(it.brand)+')' : '';
             var reasonTxt = it.reason ? escapeHtml(it.reason) : 'No reason entered';
             return '<div style="padding:4px 0 4px 10px; border-left:2px solid var(--bad); margin:4px 0;">'+
-              '<div style="font-weight:600; font-size:12.5px;">'+escapeHtml(it.item)+brandTxt+'</div>'+
+              '<div style="font-weight:600; font-size:12.5px;">'+escapeHtml(it.item)+'</div>'+
               '<div style="font-size:12px; color:var(--muted); font-style:italic;">'+reasonTxt+'</div>'+
             '</div>';
           }).join('');
@@ -2108,11 +2116,9 @@
     try{
       await refreshRosterCache(); // pick up roster changes from any device
       var daily = await loadDailyState(dateInput.value);
-      if(!daily.declared && dateInput.value === todayInputValue()){
-        await loadSheetConfig();
-        if(sheetConfig.url && sheetConfig.autoDeclare){
-          try{ daily = await autoSyncAndDeclare(dateInput.value); }catch(e){ console.error('Auto-declare failed', e); }
-        }
+      if(dateInput.value === todayInputValue()){
+        var freshDaily = await autoRefreshToday(false);
+        if(freshDaily) daily = freshDaily;
       }
       // If the admin declared a running list for this date, ONLY those trucks count.
       var targetMap = daily.declared ? daily.running : rosterCache;
@@ -2130,7 +2136,7 @@
 
       await refreshChecklistIndexCache();
       var checkedByParking = {}; // parking -> {normalizedPlate: true}
-      var flaggedDetailsByParking = {}; // parking -> {normalizedPlate: [{item, reason, brand}]}
+      var flaggedDetailsByParking = {}; // parking -> {normalizedPlate: [{item, reason}]}
 
       checklistIndexCache.forEach(function(entry){
         try{
@@ -2153,7 +2159,6 @@
               var it = entry.inspection[name];
               flaggedDetailsByParking[p][plate].push({
                 item: name,
-                brand: (it.brand || '').trim(),
                 reason: (it.reason || '').trim()
               });
             });
@@ -2223,154 +2228,6 @@
     }
   }
 
-  // ---------- TOP FLAGGED DRIVERS ----------
-  // All-time leaderboard (not tied to the summary date picker): ranks
-  // drivers by total number of individually flagged inspection items
-  // across every checklist they've been on, and breaks that count down
-  // by item/reason so a count > 1 shows exactly why.
-  async function loadTopFlaggedDrivers(){
-    var list = document.getElementById('topDriversList');
-    list.innerHTML = '<div class="empty-state">Loading...</div>';
-    try{
-      await refreshChecklistIndexCache();
-      var driverStats = {}; // normalized driver key -> {name, agency, count, reasons:{label:count}}
-
-      checklistIndexCache.forEach(function(entry){
-        try{
-          var driverName = (entry.driver || '').trim();
-          if(!driverName) return;
-
-          var badItems = Object.keys(entry.inspection || {}).filter(function(name){
-            return entry.inspection[name] && entry.inspection[name].status === 'BAD';
-          });
-          if(!badItems.length) return;
-
-          var key = driverName.toLowerCase();
-          driverStats[key] = driverStats[key] || {name: driverName, agency: (entry.agency||'').trim(), count: 0, reasons: {}};
-          if(!driverStats[key].agency && entry.agency) driverStats[key].agency = entry.agency.trim();
-
-          badItems.forEach(function(name){
-            var it = entry.inspection[name];
-            var reasonTxt = (it.reason || '').trim();
-            var label = name + (reasonTxt ? ' — ' + reasonTxt : '');
-            driverStats[key].count += 1;
-            driverStats[key].reasons[label] = (driverStats[key].reasons[label] || 0) + 1;
-          });
-        }catch(e){}
-      });
-
-      var ranked = Object.keys(driverStats).map(function(k){ return driverStats[k]; });
-      ranked.sort(function(a,b){ return b.count - a.count; });
-      ranked = ranked.slice(0, 5);
-
-      if(!ranked.length){
-        list.innerHTML = '<div class="empty-state">No flagged issues recorded yet.</div>';
-        return;
-      }
-
-      list.innerHTML = ranked.map(function(d, idx){
-        var reasonLabels = Object.keys(d.reasons).sort(function(a,b){ return d.reasons[b]-d.reasons[a]; });
-        var reasonsHtml = d.count > 1
-          ? '<div class="driver-reasons">' + reasonLabels.map(function(label){
-              var c = d.reasons[label];
-              return '<div class="driver-reason-line"><b>'+escapeHtml(label)+'</b>'+(c>1 ? ' <span class="rcount">×'+c+'</span>' : '')+'</div>';
-            }).join('') + '</div>'
-          : '<div class="driver-reasons"><div class="driver-reason-line">'+escapeHtml(reasonLabels[0]||'')+'</div></div>';
-
-        return '<div class="driver-card">'+
-          '<div class="driver-rank">#'+(idx+1)+'</div>'+
-          '<div class="driver-info">'+
-            '<div class="driver-name-row">'+
-              '<div class="driver-name">'+escapeHtml(d.name)+'</div>'+
-              '<div class="driver-count">'+d.count+' flagged</div>'+
-            '</div>'+
-            '<div class="driver-agency">'+escapeHtml(d.agency || 'No Agency')+'</div>'+
-            reasonsHtml +
-          '</div>'+
-        '</div>';
-      }).join('');
-    }catch(e){
-      list.innerHTML = '<div class="empty-state">Could not load driver stats.</div>';
-      console.error(e);
-    }
-  }
-
-  // ---------- TOP FLAGGED AGENCIES ----------
-  // All-time leaderboard (not tied to the summary date picker): ranks
-  // agencies by total number of individually flagged inspection items
-  // across every checklist under that agency, and breaks that count down
-  // by item/reason, plus which trucks (plates) were involved.
-  async function loadTopFlaggedAgencies(){
-    var list = document.getElementById('topAgenciesList');
-    list.innerHTML = '<div class="empty-state">Loading...</div>';
-    try{
-      await refreshChecklistIndexCache();
-      var agencyStats = {}; // normalized agency key -> {name, count, plates:Set-ish, reasons:{label:count}}
-
-      checklistIndexCache.forEach(function(entry){
-        try{
-          var agencyName = (entry.agency || '').trim();
-          if(!agencyName) return;
-
-          var badItems = Object.keys(entry.inspection || {}).filter(function(name){
-            return entry.inspection[name] && entry.inspection[name].status === 'BAD';
-          });
-          if(!badItems.length) return;
-
-          var key = agencyName.toLowerCase();
-          agencyStats[key] = agencyStats[key] || {name: agencyName, count: 0, plates: {}, reasons: {}};
-
-          if(entry.plate) agencyStats[key].plates[entry.plate] = true;
-
-          badItems.forEach(function(name){
-            var it = entry.inspection[name];
-            var reasonTxt = (it.reason || '').trim();
-            var label = name + (reasonTxt ? ' — ' + reasonTxt : '');
-            agencyStats[key].count += 1;
-            agencyStats[key].reasons[label] = (agencyStats[key].reasons[label] || 0) + 1;
-          });
-        }catch(e){}
-      });
-
-      var ranked = Object.keys(agencyStats).map(function(k){ return agencyStats[k]; });
-      ranked.sort(function(a,b){ return b.count - a.count; });
-      ranked = ranked.slice(0, 5);
-
-      if(!ranked.length){
-        list.innerHTML = '<div class="empty-state">No flagged issues recorded yet.</div>';
-        return;
-      }
-
-      list.innerHTML = ranked.map(function(d, idx){
-        var reasonLabels = Object.keys(d.reasons).sort(function(a,b){ return d.reasons[b]-d.reasons[a]; });
-        var reasonsHtml = d.count > 1
-          ? '<div class="driver-reasons">' + reasonLabels.map(function(label){
-              var c = d.reasons[label];
-              return '<div class="driver-reason-line"><b>'+escapeHtml(label)+'</b>'+(c>1 ? ' <span class="rcount">×'+c+'</span>' : '')+'</div>';
-            }).join('') + '</div>'
-          : '<div class="driver-reasons"><div class="driver-reason-line">'+escapeHtml(reasonLabels[0]||'')+'</div></div>';
-
-        var plateList = Object.keys(d.plates);
-        var plateTxt = plateList.length ? plateList.join(', ') : 'No Plate';
-
-        return '<div class="driver-card">'+
-          '<div class="driver-rank">#'+(idx+1)+'</div>'+
-          '<div class="driver-info">'+
-            '<div class="driver-name-row">'+
-              '<div class="driver-name">'+escapeHtml(d.name)+'</div>'+
-              '<div class="driver-count">'+d.count+' flagged</div>'+
-            '</div>'+
-            '<div class="driver-agency">'+escapeHtml(plateTxt)+'</div>'+
-            reasonsHtml +
-          '</div>'+
-        '</div>';
-      }).join('');
-    }catch(e){
-      list.innerHTML = '<div class="empty-state">Could not load agency stats.</div>';
-      console.error(e);
-    }
-  }
-
   // ---------- ROSTER ----------
   // Roster is shared storage: every user of this app sees the same truck list.
   // Stored as ONE JSON blob under a single key (not one key per truck) so
@@ -2379,7 +2236,6 @@
   // storage backend's rate limiting under the background sync poll.
   var rosterCache = {}; // normalized plate -> parking (used for the dropdown)
   var rosterEntries = {}; // normalized plate -> {plate, parking} (full records)
-  var rosterEditKey = null; // set while editing an existing entry
 
   function normalizePlate(p){ return String(p||'').trim().toUpperCase().replace(/\s+/g,' '); }
   function rosterKeyFor(plate){ return normalizePlate(plate); }
@@ -2395,58 +2251,115 @@
     sel.innerHTML = '<option value="">Select parking</option>' +
       PARKING_LOCATIONS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('');
   }
-  populateParkingSelect(document.getElementById('rosterParkingInput'));
 
-  // Rebuilds the Truck Plate No. dropdown to only show trucks whose roster
-  // parking matches the currently selected Parking Location.
+  // Plate-first entry: the plate box suggests every roster truck, and as soon as the
+  // typed plate matches one, its parking location is filled in automatically.
+  var parkingAutoFilled = false;
+  // ---- Today's running list drives the plate dropdown + parking auto-fill ----
+  // Once today's list is declared (manually or auto-synced from the sheet), ONLY
+  // running trucks are suggested, and parking is filled from that day's list.
+  // Until a list is declared, the full roster is used as a fallback.
+  var todayList = {declared:false, running:{}, down:{}};
+  var todayListLoadedAt = 0;
+
+  // Records the form may pick from: {normalizedPlate: {plate, parking}}
+  function plateCandidates(){
+    if(!todayList.declared) return rosterEntries;
+    var out = {};
+    Object.keys(todayList.running || {}).forEach(function(k){
+      var base = rosterEntries[k];
+      out[k] = {plate: base ? base.plate : k, parking: todayList.running[k] || (base && base.parking) || ''};
+    });
+    return out;
+  }
+  function lookupIn(map, raw){
+    var key = normalizePlate(raw);
+    if(!key) return null;
+    if(map[key]) return map[key];
+    var squashed = key.replace(/\s+/g,'');
+    var keys = Object.keys(map);
+    for(var i=0;i<keys.length;i++){
+      if(keys[i].replace(/\s+/g,'') === squashed) return map[keys[i]];
+    }
+    return null;
+  }
+  // Finds a record from typed text, tolerant of spacing (ABC1234 == ABC 1234).
+  function findRosterRecord(raw){ return lookupIn(plateCandidates(), raw); }
+
+  async function refreshTodayList(){
+    try{
+      var st = await loadDailyState(todayInputValue());
+      todayList = {declared: !!st.declared, running: st.running || {}, down: st.down || {}};
+    }catch(e){ /* keep previous */ }
+    todayListLoadedAt = Date.now();
+    rebuildPlateOptions();
+  }
+
+  function autoFillParking(){
+    var inp = document.getElementById('plate');
+    var pk = document.getElementById('parking');
+    var hint = document.getElementById('plateHint');
+    var rec = findRosterRecord(inp.value);
+    if(rec){
+      pk.value = rec.parking;
+      parkingAutoFilled = true;
+      hint.style.color = 'var(--ok)';
+      hint.textContent = '✓ ' + rec.plate + ' · parking auto-filled' + (todayList.declared ? ' (today\'s running list)' : '');
+    }else{
+      if(parkingAutoFilled){ pk.value = ''; parkingAutoFilled = false; }
+      if(normalizePlate(inp.value)){
+        var inRoster = lookupIn(rosterEntries, inp.value);
+        hint.style.color = 'var(--amber)';
+        if(todayList.declared && inRoster){
+          hint.textContent = '⚠ ' + inRoster.plate + ' is not on today\'s running list (DOWN) — select parking manually';
+        }else{
+          hint.textContent = 'Not in roster — select parking manually';
+        }
+      }else{
+        hint.style.color = 'var(--muted, #8a93a6)';
+        hint.textContent = todayList.declared
+          ? 'Showing today\'s running list · ' + Object.keys(todayList.running).length + ' trucks'
+          : 'No running list declared yet today — showing full roster';
+      }
+    }
+    applyGating();
+  }
+
+  // Refreshes the plate suggestions (keeps whatever is already typed).
   function rebuildPlateOptions(){
-    var sel = document.getElementById('plate');
-    var parking = document.getElementById('parking').value;
-    var otherInput = document.getElementById('plateOther');
-
-    if(!parking){
-      sel.disabled = true;
-      sel.innerHTML = '<option value="">Select parking location first</option>';
-      otherInput.style.display = 'none';
-      otherInput.value = '';
-      return;
-    }
-
-    var plates = Object.keys(rosterCache).filter(function(p){
-      return rosterCache[p] === parking;
-    }).sort();
-
-    var options = '<option value="">Select truck plate</option>' +
-      plates.map(function(p){ return '<option value="'+escapeHtml(p)+'">'+escapeHtml(p)+'</option>'; }).join('') +
-      '<option value="__other__">Other (not in roster)</option>';
-
-    sel.disabled = false;
-    sel.innerHTML = options;
-    otherInput.style.display = 'none';
-    otherInput.value = '';
+    var dl = document.getElementById('plateList');
+    var map = plateCandidates();
+    dl.innerHTML = Object.keys(map).sort().map(function(k){
+      return '<option value="'+escapeHtml(map[k].plate)+'">'+escapeHtml(map[k].parking)+'</option>';
+    }).join('');
+    autoFillParking();
   }
 
-  // Returns the plate value the form should use, whichever mode is active.
+  // Returns the plate for the form: the roster's spelling if it matches, else what was typed.
   function getPlateValue(){
-    var sel = document.getElementById('plate');
-    if(sel.value === '__other__'){
-      return document.getElementById('plateOther').value.trim();
-    }
-    return sel.value.trim();
+    var raw = document.getElementById('plate').value;
+    var rec = findRosterRecord(raw);
+    return rec ? rec.plate : normalizePlate(raw);
   }
 
-  document.getElementById('parking').addEventListener('change', rebuildPlateOptions);
+  document.getElementById('plate').addEventListener('input', autoFillParking);
 
-  document.getElementById('plate').addEventListener('change', function(){
-    var otherInput = document.getElementById('plateOther');
-    if(this.value === '__other__'){
-      otherInput.style.display = 'block';
-      otherInput.focus();
-    } else {
-      otherInput.style.display = 'none';
-      otherInput.value = '';
-    }
+  // Driver Name / Agency are typed by hand and always formatted as Proper Case
+  // (first letter of every word capital, the rest lowercase).
+  function toProperCase(str){
+    return String(str || '').toLowerCase().replace(/(^|[\s\-'.\/(])([a-z\u00e0-\u00ff])/g, function(m, pre, ch){ return pre + ch.toUpperCase(); });
+  }
+  ['driver','agencyOther'].forEach(function(f){
+    var el = document.getElementById(f);
+    el.addEventListener('input', function(){
+      var pos = el.selectionStart;
+      var fixed = toProperCase(el.value);
+      if(fixed !== el.value){ el.value = fixed; try{ el.setSelectionRange(pos, pos); }catch(e){} }
+      applyGating();
+    });
+    el.addEventListener('blur', function(){ el.value = toProperCase(el.value).replace(/\s+/g,' ').trim(); applyGating(); });
   });
+  document.getElementById('plate').addEventListener('change', autoFillParking);
 
   // Applies a freshly loaded (or locally mutated) roster blob to the caches
   // that drive the UI, without any additional storage calls.
@@ -2477,98 +2390,6 @@
     await storageAPI.set('roster-data', JSON.stringify(rosterEntries), true);
   }
 
-  function resetRosterForm(){
-    rosterEditKey = null;
-    document.getElementById('rosterFormTitle').textContent = 'Add Truck';
-    document.getElementById('rosterSaveBtn').textContent = 'Add To Roster';
-    document.getElementById('rosterCancelBtn').style.display = 'none';
-    document.getElementById('rosterPlateInput').value = '';
-    document.getElementById('rosterParkingInput').value = '';
-  }
-
-  function startEditRoster(plate, parking, key){
-    rosterEditKey = key;
-    document.getElementById('rosterFormTitle').textContent = 'Edit Truck';
-    document.getElementById('rosterSaveBtn').textContent = 'Update Truck';
-    document.getElementById('rosterCancelBtn').style.display = 'block';
-    document.getElementById('rosterPlateInput').value = plate;
-    document.getElementById('rosterParkingInput').value = parking;
-    document.getElementById('rosterPlateInput').focus();
-  }
-
-  document.getElementById('rosterCancelBtn').addEventListener('click', resetRosterForm);
-
-  document.getElementById('rosterSaveBtn').addEventListener('click', async function(){
-    var plate = document.getElementById('rosterPlateInput').value.trim();
-    var parking = document.getElementById('rosterParkingInput').value;
-    if(!plate){ showToast('Enter a truck plate no.'); return; }
-    if(!parking){ showToast('Select a parking location'); return; }
-
-    var newKey = rosterKeyFor(plate);
-    try{
-      // If editing and the plate itself changed, move the entry to the new key.
-      if(rosterEditKey && rosterEditKey !== newKey){
-        delete rosterEntries[rosterEditKey];
-      }
-      rosterEntries[newKey] = {plate: normalizePlate(plate), parking: parking};
-      await saveRosterEntries();
-      showToast(rosterEditKey ? 'Truck updated' : 'Truck added to roster');
-      resetRosterForm();
-      applyRosterEntries(rosterEntries);
-      loadRosterList();
-    }catch(e){
-      console.error(e);
-      showToast('Save failed, try again');
-    }
-  });
-
-  document.getElementById('rosterFileInput').addEventListener('change', function(ev){
-    var file = ev.target.files[0];
-    if(!file) return;
-    var reader = new FileReader();
-    reader.onload = function(){
-      document.getElementById('rosterBulkInput').value = String(reader.result || '');
-      showToast('File loaded — review, then tap Import');
-    };
-    reader.onerror = function(){ showToast('Could not read file'); };
-    reader.readAsText(file);
-    ev.target.value = '';
-  });
-
-  document.getElementById('rosterImportBtn').addEventListener('click', async function(){
-    var raw = document.getElementById('rosterBulkInput').value;
-    var lines = raw.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
-    if(!lines.length){ showToast('Paste or load some rows first'); return; }
-
-    var imported = 0, skipped = 0, skippedLines = [];
-    for(var i=0;i<lines.length;i++){
-      var parts = lines[i].split(/[,\t]/).map(function(s){return s.trim();});
-      var plate = parts[0];
-      var parkingRaw = parts.slice(1).join(' ').trim();
-      var parking = matchParking(parkingRaw);
-      if(!plate || !parking){
-        skipped++;
-        skippedLines.push(lines[i]);
-        continue;
-      }
-      rosterEntries[rosterKeyFor(plate)] = {plate: normalizePlate(plate), parking: parking};
-      imported++;
-    }
-
-    try{
-      if(imported) await saveRosterEntries();
-    }catch(e){
-      console.error(e);
-      showToast('Import failed to save, try again');
-      return;
-    }
-
-    applyRosterEntries(rosterEntries);
-    loadRosterList();
-    document.getElementById('rosterBulkInput').value = skippedLines.join('\n');
-    showToast(imported + ' imported' + (skipped ? ', ' + skipped + ' skipped (bad plate/parking)' : ''));
-  });
-
   async function loadRosterList(){
     var list = document.getElementById('rosterList');
     var countEl = document.getElementById('rosterCount');
@@ -2578,7 +2399,7 @@
       var entries = Object.keys(rosterEntries).map(function(k){ return {key:k, data: rosterEntries[k]}; });
       if(!entries.length){
         countEl.textContent = '0 trucks';
-        list.innerHTML = '<div class="empty-state">No trucks in the roster yet.<br>Add one above or bulk upload.</div>';
+        list.innerHTML = '<div class="empty-state">No trucks in the roster yet.</div>';
         return;
       }
       entries.sort(function(a,b){ return a.data.plate.localeCompare(b.data.plate); });
@@ -2594,13 +2415,9 @@
             '<div class="history-sub">'+ escapeHtml(entry.data.parking) +'</div>'+
           '</div>'+
           '<div class="roster-actions">'+
-            '<button class="roster-edit" data-key="'+entry.key+'">✎</button>'+
             '<button class="history-del" data-key="'+entry.key+'">✕</button>'+
           '</div>';
 
-        card.querySelector('.roster-edit').addEventListener('click', function(){
-          startEditRoster(entry.data.plate, entry.data.parking, entry.key);
-        });
         card.querySelector('.history-del').addEventListener('click', async function(){
           if(!confirm('Remove ' + entry.data.plate + ' from the roster?')) return;
           delete rosterEntries[entry.key];
@@ -2649,11 +2466,16 @@
     dateStr = dateStr || dailyDate; state = state || dailyState;
     state.date = dateStr;
     await storageAPI.set(dailyKey(dateStr), JSON.stringify(state), true);
+    if(dateStr === todayInputValue()){
+      todayList = {declared: !!state.declared, running: state.running || {}, down: state.down || {}};
+      todayListLoadedAt = Date.now();
+      rebuildPlateOptions();
+    }
   }
 
   // ---------- GOOGLE SHEET SYNC ----------
-  // Sheet columns (header names are matched loosely, order doesn't matter):
-  //   Plate (required) | Status (Running / Down) | Reason (optional) | Date (optional)
+  // Sheet columns: A = Plate | B = Status (Running / Down) | C = Parking
+  //   (optional extra columns headed "Reason" and "Date" are also picked up)
   // Trucks NOT listed in the sheet are treated as RUNNING, so the sheet can
   // contain either the whole fleet or just the down units.
   var sheetConfig = {url:'', autoDeclare:false};
@@ -2707,61 +2529,110 @@
     if(!res.ok) throw new Error('Sheet request failed (' + res.status + '). Is it published to the web?');
     var rows = parseCsv(await res.text());
     if(rows.length < 2) throw new Error('Sheet is empty');
+    // Fixed layout: A = Plate, B = Status (Running / Down), C = Parking.
+    // Optional: a column headed "Reason"/"Remark" and one headed "Date" anywhere in the sheet.
+    var C_PLATE = 0, C_STATUS = 1, C_PARKING = 2;
     var head = rows[0].map(function(h){ return String(h).trim().toLowerCase(); });
     function col(names){ for(var i=0;i<head.length;i++){ for(var j=0;j<names.length;j++){ if(head[i].indexOf(names[j]) > -1) return i; } } return -1; }
-    var cPlate = col(['plate']), cStatus = col(['status']), cReason = col(['reason','remark','note']), cDate = col(['date']);
-    if(cPlate < 0 || cStatus < 0) throw new Error('Sheet needs "Plate" and "Status" column headers');
+    var cReason = col(['reason','remark','note']), cDate = col(['date']);
 
-    var down = {}, notInRoster = [], unknown = [], used = 0;
-    rows.slice(1).forEach(function(r){
+    // Row 1 is a header unless its column B already holds a real status word.
+    var firstSt = String(rows[0][C_STATUS]||'').trim().toLowerCase();
+    var dataRows = (DOWN_WORDS.indexOf(firstSt) > -1 || RUN_WORDS.indexOf(firstSt) > -1) ? rows : rows.slice(1);
+
+    var down = {}, parkingMap = {}, notInRoster = [], unknown = [], badParking = [], used = 0;
+    dataRows.forEach(function(r){
       if(cDate > -1 && String(r[cDate]||'').trim() && cellToYmd(r[cDate]) !== dateStr) return;
-      var key = normalizePlate(r[cPlate]);
+      var key = normalizePlate(r[C_PLATE]);
       if(!key) return;
       used++;
-      var st = String(r[cStatus]||'').trim().toLowerCase();
+      var st = String(r[C_STATUS]||'').trim().toLowerCase();
       var isDown = DOWN_WORDS.indexOf(st) > -1;
       var isRun = RUN_WORDS.indexOf(st) > -1;
       if(!isDown && !isRun){ unknown.push(key + ' ("' + st + '")'); return; }
       if(!rosterEntries[key]){ notInRoster.push(key); return; }
+      // Parking from column C wins over the roster's parking when it matches a known location.
+      var rawPk = String(r[C_PARKING]||'').trim();
+      var pk = matchParking(rawPk);
+      if(rawPk && !pk) badParking.push(key + ' ("' + rawPk + '")');
+      var parking = pk || rosterEntries[key].parking;
+      parkingMap[key] = parking;
       if(isDown){
-        down[key] = {plate: rosterEntries[key].plate, parking: rosterEntries[key].parking,
-                     reason: cReason > -1 ? String(r[cReason]||'').trim() : (r[cStatus]||'').trim()};
+        down[key] = {plate: rosterEntries[key].plate, parking: parking,
+                     reason: cReason > -1 ? String(r[cReason]||'').trim() : (r[C_STATUS]||'').trim()};
       }
     });
     if(!used) throw new Error('No sheet rows found for ' + dateStr);
-    return {down: down, notInRoster: notInRoster, unknown: unknown, rows: used};
+    return {down: down, parkingMap: parkingMap, notInRoster: notInRoster, unknown: unknown, badParking: badParking, rows: used};
   }
 
-  function buildRunningSnapshot(down){
+  function buildRunningSnapshot(down, parkingMap){
     var running = {};
-    Object.keys(rosterEntries).forEach(function(k){ if(!down[k]) running[k] = rosterEntries[k].parking; });
+    parkingMap = parkingMap || {};
+    Object.keys(rosterEntries).forEach(function(k){ if(!down[k]) running[k] = parkingMap[k] || rosterEntries[k].parking; });
     return running;
   }
 
   function sheetReportHtml(res){
     var out = 'Synced ' + res.rows + ' sheet rows · ' + Object.keys(res.down).length + ' down.';
     if(res.notInRoster.length) out += '<br><span style="color:var(--amber);">Not in roster (' + res.notInRoster.length + '): ' + escapeHtml(res.notInRoster.slice(0,15).join(', ')) + (res.notInRoster.length > 15 ? ' …' : '') + '</span>';
+    if(res.badParking.length) out += '<br><span style="color:var(--amber);">Unknown parking in column C (' + res.badParking.length + ', roster parking used): ' + escapeHtml(res.badParking.slice(0,8).join(', ')) + (res.badParking.length > 8 ? ' …' : '') + '</span>';
     if(res.unknown.length) out += '<br><span style="color:var(--bad);">Unrecognized status (' + res.unknown.length + '): ' + escapeHtml(res.unknown.slice(0,10).join(', ')) + (res.unknown.length > 10 ? ' …' : '') + '</span>';
     return out;
   }
 
-  // Used by the Summary tab: if today has no declared list and auto-declare is on,
-  // pull the sheet and declare it without any admin action.
+  var AUTO_REFRESH_MS = 5 * 60 * 1000;
+  var lastSheetRes = null;
+
+  // Pulls the sheet for dateStr and (re)declares that day's running list.
+  // source:'sheet-auto' marks it as sheet-driven so later refreshes may update it.
   async function autoSyncAndDeclare(dateStr){
     await refreshRosterCache();
     var res = await readSheetForDate(dateStr);
-    var st = {declared:true, down:res.down, running:buildRunningSnapshot(res.down), declaredAt:new Date().toISOString(), source:'sheet-auto'};
+    lastSheetRes = res;
+    var prev = await loadDailyState(dateStr);
+    var nowIso = new Date().toISOString();
+    var st = {declared:true, down:res.down, parking:res.parkingMap, running:buildRunningSnapshot(res.down, res.parkingMap),
+              declaredAt: prev.declaredAt || nowIso, syncedAt: nowIso, source:'sheet-auto'};
     await saveDailyState(dateStr, st);
     return st;
   }
 
+  // Keeps TODAY's list in step with the sheet. Safe to call from anywhere/any device:
+  // throttled to once per 5 min, skips days an admin took over manually, and never
+  // wipes the existing list if the sheet can't be reached.
+  async function autoRefreshToday(force){
+    try{
+      await loadSheetConfig();
+      if(!sheetConfig.url || !sheetConfig.autoDeclare) return null;
+      var today = todayInputValue();
+      var cur = await loadDailyState(today);
+      if(cur.source === 'manual') return null;
+      if(cur.declared && cur.source !== 'sheet-auto') return null;
+      if(!force && cur.syncedAt && (Date.now() - new Date(cur.syncedAt).getTime()) < AUTO_REFRESH_MS - 30000) return cur;
+      return await autoSyncAndDeclare(today);
+    }catch(e){
+      console.error('Auto refresh failed', e);
+      return null;
+    }
+  }
+
   async function syncFromSheet(auto){
     var rep = document.getElementById('dlSyncReport');
-    if(dailyState.declared){ if(!auto) showToast('List already declared. Re-open it first.'); return; }
+    if(dailyState.declared && dailyState.source !== 'sheet-auto'){ if(!auto) showToast('List already declared. Re-open it first.'); return; }
+    if(auto && dailyState.source === 'manual') return; // admin is editing by hand
     rep.textContent = 'Syncing…';
     try{
+      if(dailyState.declared){ // sheet-driven list: refresh snapshot too
+        dailyState = await autoSyncAndDeclare(dailyDate);
+        rep.innerHTML = sheetReportHtml(lastSheetRes);
+        renderDailyList();
+        return;
+      }
       var res = await readSheetForDate(dailyDate);
       dailyState.down = res.down;
+      dailyState.parking = res.parkingMap;
+      dailyState.syncedAt = new Date().toISOString();
       await saveDailyState();
       rep.innerHTML = sheetReportHtml(res);
       renderDailyList();
@@ -2769,11 +2640,6 @@
       console.error(e);
       rep.innerHTML = '<span style="color:var(--bad);">' + escapeHtml(e.message || 'Sync failed') + '</span>';
     }
-  }
-  function shiftDate(dateStr, days){
-    var p = dateStr.split('-').map(Number);
-    var d = new Date(p[0], p[1]-1, p[2] + days);
-    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   }
 
   (function initDailyFilters(){
@@ -2790,6 +2656,10 @@
       await refreshRosterCache();
       dailyState = await loadDailyState(dailyDate);
       await loadSheetConfig();
+      if(dailyDate === todayInputValue() && sheetConfig.autoDeclare){
+        var fresh = await autoRefreshToday(false);
+        if(fresh) dailyState = fresh;
+      }
       renderDailyList();
       if(!dailyState.declared && sheetConfig.url) await syncFromSheet(true);
     }catch(e){
@@ -2809,8 +2679,9 @@
     document.getElementById('dlRunning').textContent = runningCount;
     document.getElementById('dlDown').textContent = downKeys.length;
     document.getElementById('dlDateLabel').textContent = dailyDate;
+    var syncTxt = dailyState.syncedAt ? ' · synced ' + new Date(dailyState.syncedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
     document.getElementById('dlStatusBadge').innerHTML = declared
-      ? '<span class="dl-status declared">DECLARED · '+Object.keys(dailyState.running).length+' trucks must undergo checklist</span>'
+      ? '<span class="dl-status declared">'+(dailyState.source==='sheet-auto' ? 'AUTO · ' : 'DECLARED · ')+Object.keys(dailyState.running).length+' trucks must undergo checklist'+syncTxt+'</span>'
       : '<span class="dl-status draft">DRAFT · not yet declared (Summary uses full roster)</span>';
     document.getElementById('dlDeclareBtn').style.display = declared ? 'none' : 'block';
     document.getElementById('dlReopenBtn').style.display = declared ? 'block' : 'none';
@@ -2831,7 +2702,7 @@
       .sort(function(a,b){ return a.data.plate.localeCompare(b.data.plate); });
 
     var list = document.getElementById('dlList');
-    if(!fleet){ list.innerHTML = '<div class="empty-state">No trucks in the roster yet.<br>Add trucks below first.</div>'; return; }
+    if(!fleet){ list.innerHTML = '<div class="empty-state">No trucks in the roster yet.<br>The truck roster is empty.</div>'; return; }
     if(!rows.length){ list.innerHTML = '<div class="empty-state">No trucks match the filter.</div>'; return; }
 
     list.innerHTML = '';
@@ -2900,13 +2771,14 @@
   document.getElementById('dlDeclareBtn').addEventListener('click', async function(){
     var keys = Object.keys(rosterEntries);
     var running = {};
-    keys.forEach(function(k){ if(!dailyState.down[k]) running[k] = rosterEntries[k].parking; });
+    keys.forEach(function(k){ if(!dailyState.down[k]) running[k] = (dailyState.parking || {})[k] || rosterEntries[k].parking; });
     var n = Object.keys(running).length;
     if(!n){ showToast('No running trucks to declare'); return; }
     if(!confirm('Declare ' + n + ' of ' + keys.length + ' trucks as running for ' + dailyDate + '?\nThese must undergo checklist.')) return;
     dailyState.running = running;
     dailyState.declared = true;
     dailyState.declaredAt = new Date().toISOString();
+    dailyState.source = 'manual';
     try{ await saveDailyState(); }catch(e){ console.error(e); showToast('Declare failed, try again'); return; }
     renderDailyList();
     showToast('Declared ' + n + ' trucks for ' + dailyDate);
@@ -2915,70 +2787,78 @@
   document.getElementById('dlReopenBtn').addEventListener('click', async function(){
     if(!confirm('Re-open ' + dailyDate + '? You can edit the list, then declare again.')) return;
     dailyState.declared = false;
+    dailyState.source = 'manual'; // admin took over: auto-refresh leaves today alone
     try{ await saveDailyState(); }catch(e){ showToast('Save failed, try again'); return; }
     renderDailyList();
   });
 
+  // Background auto-refresh: runs on every open device, whatever tab is showing.
+  // A new calendar day has no saved list yet, so the first run after midnight
+  // declares the new day's list straight from the sheet.
+  setTimeout(function(){ autoRefreshToday(false).then(function(){ refreshTodayList(); }); }, 3000);
+  setTimeout(refreshTodayList, 800);
+  setInterval(refreshTodayList, AUTO_REFRESH_MS);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) refreshTodayList(); });
+  document.getElementById('plate').addEventListener('focus', function(){
+    if(Date.now() - todayListLoadedAt > 60000) refreshTodayList();
+  });
+  setInterval(function(){ autoRefreshToday(false); }, AUTO_REFRESH_MS);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) autoRefreshToday(false); });
+
   // ---------- AGENCY ROSTER ----------
-  // Agencies are also shared storage, managed by admins the same way as the
-  // truck roster — stored as ONE JSON blob (not one key per agency) so a
-  // read/write is a single storage call, same reasoning as the truck roster.
-  var agencyCache = []; // list of agency names (for the checklist dropdown)
-  var agencyEntries = {}; // normalized name -> {name} (full records)
+  // Shared storage, managed by admins. Stored as ONE JSON blob ('agency-data') keyed by
+  // upper-cased name. The checklist's Agency dropdown is built from it.
+  var agencyEntries = {};   // KEY -> {name}
   var agencyEditKey = null;
 
-  function normalizeAgency(a){ return String(a||'').trim(); }
+  function normalizeAgency(a){ return String(a||'').replace(/\s+/g,' ').trim(); }
   function agencyKeyFor(name){ return normalizeAgency(name).toUpperCase(); }
 
-  // Rebuilds the checklist's Agency dropdown from the cached agency roster.
-  function rebuildAgencyOptions(){
-    var sel = document.getElementById('agency');
-    var current = sel.value;
-    var options = '<option value="">Select agency</option>' +
-      agencyCache.slice().sort().map(function(a){ return '<option value="'+escapeHtml(a)+'">'+escapeHtml(a)+'</option>'; }).join('') +
-      '<option value="__other__">Other (not in roster)</option>';
-    sel.innerHTML = options;
-    if(agencyCache.indexOf(current) !== -1 || current === '__other__') sel.value = current;
-  }
-
-  // Returns the agency value the form should use, whichever mode is active.
+  // Agency value for the form: the chosen roster name, or the typed "Other" name (Proper Case).
   function getAgencyValue(){
     var sel = document.getElementById('agency');
-    if(sel.value === '__other__'){
-      return document.getElementById('agencyOther').value.trim();
-    }
+    if(sel.value === '__other__') return toProperCase(document.getElementById('agencyOther').value).replace(/\s+/g,' ').trim();
     return sel.value.trim();
   }
 
+  function showAgencyOther(on){
+    var o = document.getElementById('agencyOther');
+    o.style.display = on ? 'block' : 'none';
+    if(!on) o.value = '';
+  }
+
+  function rebuildAgencyOptions(){
+    var sel = document.getElementById('agency');
+    var current = sel.value;
+    var names = Object.keys(agencyEntries).map(function(k){ return agencyEntries[k].name; })
+      .sort(function(a,b){ return a.localeCompare(b); });
+    sel.innerHTML = '<option value="">Select agency</option>' +
+      names.map(function(n){ return '<option value="'+escapeHtml(n)+'">'+escapeHtml(n)+'</option>'; }).join('') +
+      '<option value="__other__">Other (not in roster)</option>';
+    if(names.indexOf(current) !== -1 || current === '__other__') sel.value = current;
+    else if(!names.length){ sel.value = '__other__'; } // nothing uploaded yet: allow typing
+    showAgencyOther(sel.value === '__other__');
+    applyGating();
+  }
+
   document.getElementById('agency').addEventListener('change', function(){
-    var otherInput = document.getElementById('agencyOther');
-    if(this.value === '__other__'){
-      otherInput.style.display = 'block';
-      otherInput.focus();
-    } else {
-      otherInput.style.display = 'none';
-      otherInput.value = '';
-    }
+    showAgencyOther(this.value === '__other__');
+    if(this.value === '__other__') document.getElementById('agencyOther').focus();
+    applyGating();
   });
 
   function applyAgencyEntries(data){
     agencyEntries = data || {};
-    agencyCache = Object.keys(agencyEntries).map(function(k){ return agencyEntries[k].name; });
     rebuildAgencyOptions();
   }
-
-  // Loads the full agency roster (single shared record) into memory.
-  // Called at startup, on tab open, and by the background poll.
   async function refreshAgencyCache(){
     try{
       var r = await storageAPI.get('agency-data', true);
       applyAgencyEntries(r && r.value ? JSON.parse(r.value) : {});
     }catch(e){
-      // A missing key just means no agencies have been saved yet.
-      applyAgencyEntries(agencyEntries);
+      applyAgencyEntries(agencyEntries); // no agencies saved yet
     }
   }
-
   async function saveAgencyEntries(){
     await storageAPI.set('agency-data', JSON.stringify(agencyEntries), true);
   }
@@ -2990,7 +2870,6 @@
     document.getElementById('agencyRosterCancelBtn').style.display = 'none';
     document.getElementById('agencyRosterInput').value = '';
   }
-
   function startEditAgency(name, key){
     agencyEditKey = key;
     document.getElementById('agencyFormTitle').textContent = 'Edit Agency';
@@ -2999,68 +2878,49 @@
     document.getElementById('agencyRosterInput').value = name;
     document.getElementById('agencyRosterInput').focus();
   }
-
   document.getElementById('agencyRosterCancelBtn').addEventListener('click', resetAgencyForm);
 
   document.getElementById('agencyRosterSaveBtn').addEventListener('click', async function(){
-    var name = document.getElementById('agencyRosterInput').value.trim();
+    var name = normalizeAgency(document.getElementById('agencyRosterInput').value);
     if(!name){ showToast('Enter an agency name'); return; }
-
     var newKey = agencyKeyFor(name);
     try{
-      if(agencyEditKey && agencyEditKey !== newKey){
-        delete agencyEntries[agencyEditKey];
-      }
-      agencyEntries[newKey] = {name: normalizeAgency(name)};
+      if(agencyEditKey && agencyEditKey !== newKey) delete agencyEntries[agencyEditKey];
+      agencyEntries[newKey] = {name: name};
       await saveAgencyEntries();
-      showToast(agencyEditKey ? 'Agency updated' : 'Agency added to roster');
+      showToast(agencyEditKey ? 'Agency updated' : 'Agency added');
       resetAgencyForm();
       applyAgencyEntries(agencyEntries);
       loadAgencyList();
-    }catch(e){
-      console.error(e);
-      showToast('Save failed, try again');
-    }
+    }catch(e){ console.error(e); showToast('Save failed, try again'); }
   });
 
   document.getElementById('agencyFileInput').addEventListener('change', function(ev){
-    var file = ev.target.files[0];
+    var file = ev.target.files && ev.target.files[0];
     if(!file) return;
     var reader = new FileReader();
-    reader.onload = function(){
-      document.getElementById('agencyBulkInput').value = String(reader.result || '');
-      showToast('File loaded — review, then tap Import');
-    };
-    reader.onerror = function(){ showToast('Could not read file'); };
+    reader.onload = function(){ document.getElementById('agencyBulkInput').value = String(reader.result || ''); };
     reader.readAsText(file);
     ev.target.value = '';
   });
 
   document.getElementById('agencyImportBtn').addEventListener('click', async function(){
-    var raw = document.getElementById('agencyBulkInput').value;
-    var lines = raw.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
-    if(!lines.length){ showToast('Paste or load some rows first'); return; }
-
-    var imported = 0, skipped = 0, skippedLines = [];
-    for(var i=0;i<lines.length;i++){
-      var name = lines[i].split(/[,\t]/)[0].trim();
-      if(!name){ skipped++; skippedLines.push(lines[i]); continue; }
-      agencyEntries[agencyKeyFor(name)] = {name: normalizeAgency(name)};
+    var lines = document.getElementById('agencyBulkInput').value.split(/\r?\n/);
+    var imported = 0;
+    lines.forEach(function(line){
+      var name = normalizeAgency(line.split(',')[0].replace(/^"|"$/g,''));
+      if(!name || /^agency( name)?$/i.test(name)) return; // skip blanks / header row
+      agencyEntries[agencyKeyFor(name)] = {name: name};
       imported++;
-    }
-
+    });
+    if(!imported){ showToast('No agencies found to import'); return; }
     try{
-      if(imported) await saveAgencyEntries();
-    }catch(e){
-      console.error(e);
-      showToast('Import failed to save, try again');
-      return;
-    }
-
-    applyAgencyEntries(agencyEntries);
-    loadAgencyList();
-    document.getElementById('agencyBulkInput').value = skippedLines.join('\n');
-    showToast(imported + ' imported' + (skipped ? ', ' + skipped + ' skipped' : ''));
+      await saveAgencyEntries();
+      showToast(imported + ' agenc' + (imported === 1 ? 'y' : 'ies') + ' imported');
+      document.getElementById('agencyBulkInput').value = '';
+      applyAgencyEntries(agencyEntries);
+      loadAgencyList();
+    }catch(e){ console.error(e); showToast('Import failed, try again'); }
   });
 
   async function loadAgencyList(){
@@ -3068,7 +2928,7 @@
     var countEl = document.getElementById('agencyCount');
     list.innerHTML = '<div class="empty-state">Loading...</div>';
     try{
-      await refreshAgencyCache(); // single storage call keeps dropdown + list in sync
+      await refreshAgencyCache();
       var entries = Object.keys(agencyEntries).map(function(k){ return {key:k, data: agencyEntries[k]}; });
       if(!entries.length){
         countEl.textContent = '0 agencies';
@@ -3076,46 +2936,32 @@
         return;
       }
       entries.sort(function(a,b){ return a.data.name.localeCompare(b.data.name); });
-      countEl.textContent = entries.length + ' agenc' + (entries.length===1 ? 'y' : 'ies');
-
+      countEl.textContent = entries.length + ' agenc' + (entries.length === 1 ? 'y' : 'ies');
       list.innerHTML = '';
       entries.forEach(function(entry){
         var card = document.createElement('div');
         card.className = 'history-card';
         card.innerHTML =
-          '<div class="history-meta">'+
-            '<div class="history-plate">'+ escapeHtml(entry.data.name) +'</div>'+
-          '</div>'+
+          '<div class="history-meta"><div class="history-plate">'+escapeHtml(entry.data.name)+'</div></div>'+
           '<div class="roster-actions">'+
-            '<button class="roster-edit" data-key="'+entry.key+'">✎</button>'+
-            '<button class="history-del" data-key="'+entry.key+'">✕</button>'+
+            '<button class="roster-edit">✎</button>'+
+            '<button class="history-del">✕</button>'+
           '</div>';
-
-        card.querySelector('.roster-edit').addEventListener('click', function(){
-          startEditAgency(entry.data.name, entry.key);
-        });
+        card.querySelector('.roster-edit').addEventListener('click', function(){ startEditAgency(entry.data.name, entry.key); });
         card.querySelector('.history-del').addEventListener('click', async function(){
           if(!confirm('Remove ' + entry.data.name + ' from the roster?')) return;
           delete agencyEntries[entry.key];
-          try{
-            await saveAgencyEntries();
-          }catch(e){
-            console.error(e);
-            showToast('Delete failed, try again');
-            return;
-          }
+          try{ await saveAgencyEntries(); }catch(e){ console.error(e); showToast('Delete failed, try again'); return; }
           applyAgencyEntries(agencyEntries);
           loadAgencyList();
         });
-
         list.appendChild(card);
       });
     }catch(e){
-      list.innerHTML = '<div class="empty-state">Could not load roster.</div>';
+      list.innerHTML = '<div class="empty-state">Could not load agencies.</div>';
       console.error(e);
     }
   }
-
 
   // ---------- MECHANIC / SUPPORT ROSTER ----------
   // Also shared storage, managed by admins the same way as the truck/agency
@@ -3284,11 +3130,10 @@
     var box = document.getElementById('detailBox');
     var d = new Date(entry.dateISO);
     var rows = INSPECTION_ITEMS.map(function(name){
-      var it = entry.inspection[name] || {status:null, brand:'', photos:{}};
+      var it = entry.inspection[name] || {status:null, photos:{}};
       var label = it.status || '—';
       var cls = it.status || '';
-      var brandTxt = it.brand ? ' · ' + it.brand : '';
-      var line = '<div class="detail-line"><div class="k">'+name+brandTxt+'</div><div class="detail-status '+cls+'">'+label+'</div></div>';
+      var line = '<div class="detail-line"><div class="k">'+name+'</div><div class="detail-status '+cls+'">'+label+'</div></div>';
       if(it.status === 'BAD' && it.reason){
         line += '<div style="font-size:12px; color:var(--bad); font-style:italic; padding:2px 0 4px;">Reason: '+escapeHtml(it.reason)+'</div>';
       }
@@ -3314,8 +3159,8 @@
       '<div class="detail-line"><div class="k">Date</div><div>'+d.toLocaleString()+'</div></div>'+
       '<div class="detail-line"><div class="k">Odometer</div><div>'+(entry.odometer ? entry.odometer + ' KM' : '—')+'</div></div>'+
       '<div class="detail-line"><div class="k">Inspected By</div><div>'+(entry.inspectedBy||'—')+'</div></div>'+
-      '<div class="detail-line"><div class="k">Driver</div><div>'+(entry.driver||'—')+'</div></div>'+
-      '<div class="detail-line"><div class="k">Agency</div><div>'+(entry.agency||'—')+'</div></div>'+
+      '<div class="detail-line"><div class="k">Driver</div><div>'+escapeHtml(entry.driver||'—')+'</div></div>'+
+      '<div class="detail-line"><div class="k">Agency</div><div>'+escapeHtml(entry.agency||'—')+'</div></div>'+
       '<div class="detail-line"><div class="k">Parking</div><div>'+entry.parking+'</div></div>'+
       '<h3 style="margin-top:20px;">Inspection</h3>'+ rows +
       '<h3 style="margin-top:20px;">Tools Present</h3>'+
@@ -3361,6 +3206,7 @@
       var code = (typeof jsQR === 'function') ? jsQR(imageData.data, imageData.width, imageData.height) : null;
       if(code && code.data){
         document.getElementById('inspectedBy').value = code.data;
+        applyGating();
         showToast('Scanned: ' + code.data);
         stopQRScanner();
         return;
