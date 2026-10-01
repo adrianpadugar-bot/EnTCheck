@@ -2272,7 +2272,7 @@
       });
 
       var banner = daily.declared
-        ? '<div class="summary-empty-note" style="margin:0 0 10px; color:var(--ok);">Declared running list: '+grandTotal+' of '+Object.keys(rosterEntries).length+' fleet trucks must undergo checklist on this date.</div>'
+        ? '<div class="summary-empty-note" style="margin:0 0 10px; color:var(--ok);">Declared running list: '+grandTotal+' of '+(Object.keys(daily.running||{}).length + Object.keys(daily.down||{}).length)+' fleet trucks must undergo checklist on this date.</div>'
         : '<div class="summary-empty-note" style="margin:0 0 10px;">No running list declared for this date — using the full roster ('+grandTotal+' trucks).</div>';
       list.innerHTML = banner + summaryCardHtml('p::__ALL__', 'All Parking (Overall)', grandChecked, grandFlagged, grandTotal, true, grandPending.sort(), grandFlaggedDetails) + cardsHtml;
     }catch(e){
@@ -2654,15 +2654,15 @@
       var isDown = DOWN_WORDS.indexOf(st) > -1;
       var isRun = RUN_WORDS.indexOf(st) > -1;
       if(!isDown && !isRun){ unknown.push(key + ' ("' + st + '")'); return; }
-      if(!rosterEntries[key]){ notInRoster.push(key); return; }
-      // Parking from column D (the link file) wins over the roster's parking when it matches a known location.
+      // Parking comes ONLY from column D of the link file (column C is never read).
       var rawPk = String(r[C_PARKING]||'').trim();
       var pk = matchParking(rawPk);
-      if(rawPk && !pk) badParking.push(key + ' ("' + rawPk + '")');
-      var parking = pk || rosterEntries[key].parking;
+      if(!rawPk) badParking.push('(blank)');
+      else if(!pk) badParking.push('"' + rawPk + '"');
+      var parking = pk || ''; // column D only: no fallback to the roster or to any other column
       parkingMap[key] = parking;
       if(isDown){
-        down[key] = {plate: rosterEntries[key].plate, parking: parking,
+        down[key] = {plate: (rosterEntries[key] && rosterEntries[key].plate) || key, parking: parking,
                      reason: cReason > -1 ? String(r[cReason]||'').trim() : (r[C_STATUS]||'').trim()};
       }
     });
@@ -2673,14 +2673,23 @@
   function buildRunningSnapshot(down, parkingMap){
     var running = {};
     parkingMap = parkingMap || {};
-    Object.keys(rosterEntries).forEach(function(k){ if(!down[k]) running[k] = parkingMap[k] || rosterEntries[k].parking; });
+    var sheetKeys = Object.keys(parkingMap);
+    if(sheetKeys.length){ // the sheet is the fleet: running = every sheet truck that is not down
+      sheetKeys.forEach(function(k){ if(!down[k]) running[k] = parkingMap[k]; });
+      return running;
+    }
+    Object.keys(rosterEntries).forEach(function(k){ if(!down[k]) running[k] = rosterEntries[k].parking; });
     return running;
   }
 
   function sheetReportHtml(res){
     var out = 'Synced ' + res.rows + ' sheet rows · ' + Object.keys(res.down).length + ' down.';
     if(res.notInRoster.length) out += '<br><span style="color:var(--amber);">Not in roster (' + res.notInRoster.length + '): ' + escapeHtml(res.notInRoster.slice(0,15).join(', ')) + (res.notInRoster.length > 15 ? ' …' : '') + '</span>';
-    if(res.badParking.length) out += '<br><span style="color:var(--amber);">Unknown parking in column D (' + res.badParking.length + ', roster parking used): ' + escapeHtml(res.badParking.slice(0,8).join(', ')) + (res.badParking.length > 8 ? ' …' : '') + '</span>';
+    if(res.badParking.length){
+      var cnt = {}; res.badParking.forEach(function(v){ cnt[v] = (cnt[v]||0) + 1; });
+      var parts = Object.keys(cnt).sort(function(x,y){ return cnt[y]-cnt[x]; }).slice(0,25).map(function(v){ return v + ' × ' + cnt[v]; });
+      out += '<br><span style="color:var(--amber);">Column D not a known parking (' + res.badParking.length + ' trucks, kept without a parking): ' + escapeHtml(parts.join(', ')) + '</span>';
+    }
     if(res.unknown.length) out += '<br><span style="color:var(--bad);">Unrecognized status (' + res.unknown.length + '): ' + escapeHtml(res.unknown.slice(0,10).join(', ')) + (res.unknown.length > 10 ? ' …' : '') + '</span>';
     return out;
   }
@@ -2772,8 +2781,23 @@
     }
   }
 
+  // Fleet for the selected day: the synced sheet when there is one, else the roster.
+  function fleetEntries(){
+    var out = {};
+    var pm = (dailyState && dailyState.parking) || {};
+    var dn = (dailyState && dailyState.down) || {};
+    var fromSheet = Object.keys(pm).length > 0 && !!dailyState.syncedAt;
+    if(fromSheet){
+      Object.keys(pm).forEach(function(k){ out[k] = {plate:k, parking:pm[k] || ''}; });
+      Object.keys(dn).forEach(function(k){ if(!out[k]) out[k] = {plate:(dn[k] && dn[k].plate) || k, parking:(dn[k] && dn[k].parking) || ''}; });
+      return out;
+    }
+    return rosterEntries;
+  }
+
   function renderDailyList(){
-    var keys = Object.keys(rosterEntries);
+    var fleetMap = fleetEntries();
+    var keys = Object.keys(fleetMap);
     var fleet = keys.length;
     var downKeys = keys.filter(function(k){ return dailyState.down[k]; });
     var runningCount = fleet - downKeys.length;
@@ -2795,7 +2819,7 @@
     var show = document.getElementById('dlShowFilter').value;
     var q = normalizePlate(document.getElementById('dlSearch').value);
 
-    var rows = keys.map(function(k){ return {key:k, data:rosterEntries[k], down: !!dailyState.down[k]}; })
+    var rows = keys.map(function(k){ return {key:k, data:fleetMap[k], down: !!dailyState.down[k]}; })
       .filter(function(r){
         if(pf && r.data.parking !== pf) return false;
         if(show === 'down' && !r.down) return false;
@@ -2806,7 +2830,7 @@
       .sort(function(a,b){ return a.data.plate.localeCompare(b.data.plate); });
 
     var list = document.getElementById('dlList');
-    if(!fleet){ list.innerHTML = '<div class="empty-state">No trucks in the roster yet.<br>The truck roster is empty.</div>'; return; }
+    if(!fleet){ list.innerHTML = '<div class="empty-state">No trucks yet.<br>Save the sheet link and tap Sync From Sheet.</div>'; return; }
     if(!rows.length){ list.innerHTML = '<div class="empty-state">No trucks match the filter.</div>'; return; }
 
     list.innerHTML = '';
@@ -2873,9 +2897,10 @@
   });
 
   document.getElementById('dlDeclareBtn').addEventListener('click', async function(){
-    var keys = Object.keys(rosterEntries);
+    var fleetMap = fleetEntries();
+    var keys = Object.keys(fleetMap);
     var running = {};
-    keys.forEach(function(k){ if(!dailyState.down[k]) running[k] = (dailyState.parking || {})[k] || rosterEntries[k].parking; });
+    keys.forEach(function(k){ if(!dailyState.down[k]) running[k] = (dailyState.parking || {})[k] || fleetMap[k].parking; });
     var n = Object.keys(running).length;
     if(!n){ showToast('No running trucks to declare'); return; }
     if(!confirm('Declare ' + n + ' of ' + keys.length + ' trucks as running for ' + dailyDate + '?\nThese must undergo checklist.')) return;
