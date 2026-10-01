@@ -2576,12 +2576,31 @@
   var DOWN_WORDS = ['down','breakdown','break down','broken','unusable','not usable','for repair','repair','under repair','maintenance','out of service','oos','inactive','no','n','not running','not available','unavailable','0'];
   var RUN_WORDS = ['running','run','ok','usable','available','active','yes','y','operational','1'];
 
+  // Accepts a normal Google Sheets link (edit/share/view) as well as a published CSV link.
+  // Normal links are converted to the CSV endpoint that browsers are allowed to read.
+  function toCsvUrl(url){
+    url = String(url||'').trim();
+    if(/\/spreadsheets\/d\/e\//.test(url)) return url; // already a published link
+    var m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if(!m) return url;
+    var gid = (url.match(/[#&?]gid=(\d+)/) || [])[1];
+    return 'https://docs.google.com/spreadsheets/d/' + m[1] + '/gviz/tq?tqx=out:csv' + (gid ? '&gid=' + gid : '');
+  }
+
   // Reads the sheet and returns {down, report}. Throws on fetch/format problems.
   async function readSheetForDate(dateStr){
     var url = (sheetConfig.url || '').trim();
     if(!url) throw new Error('No Google Sheet link saved yet');
-    var res = await fetch(url + (url.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now(), {cache:'no-store'});
-    if(!res.ok) throw new Error('Sheet request failed (' + res.status + '). Is it published to the web?');
+    url = toCsvUrl(url);
+    var res;
+    try{
+      res = await fetch(url + (url.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now(), {cache:'no-store'});
+    }catch(err){
+      throw new Error('Failed to fetch the sheet. In Google Sheets use File > Share > Publish to web > choose the tab > CSV, then paste that link here (or set sharing to "Anyone with the link: Viewer").');
+    }
+    if(!res.ok) throw new Error('Sheet request failed (' + res.status + '). Publish it to the web as CSV, or share it as "Anyone with the link".');
+    var ctype = (res.headers.get('content-type') || '').toLowerCase();
+    if(ctype.indexOf('text/html') > -1) throw new Error('Google returned a web page instead of CSV. Publish the sheet to the web as CSV, or set sharing to "Anyone with the link".');
     var rows = parseCsv(await res.text());
     if(rows.length < 2) throw new Error('Sheet is empty');
     // Fixed layout: A = Plate, B = Status (Running / Down), D = Parking (column C is skipped).
