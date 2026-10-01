@@ -349,6 +349,20 @@
   }
   .qr-status{font-size:12px; color:var(--muted); margin-top:12px; min-height:16px;}
   .qr-manual-toggle{background:none; border:none; color:var(--amber); font-family:var(--mono); font-size:11px; text-decoration:underline; cursor:pointer; margin-top:14px;}
+
+  /* DAILY RUNNING LIST */
+  .dl-stats{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px;}
+  .dl-stat{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 8px; text-align:center;}
+  .dl-stat .n{font-family:var(--mono); font-size:22px; font-weight:700; color:var(--text);}
+  .dl-stat .l{font-family:var(--mono); font-size:9.5px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-top:2px;}
+  .dl-stat.run .n{color:var(--ok);} .dl-stat.down .n{color:var(--bad);}
+  .dl-status{font-family:var(--mono); font-size:11px; font-weight:700; padding:4px 8px; border-radius:5px; display:inline-block; margin-bottom:10px;}
+  .dl-status.declared{background:rgba(76,195,138,0.15); color:var(--ok);}
+  .dl-status.draft{background:rgba(245,166,35,0.15); color:var(--amber);}
+  .dl-toggle{font-family:var(--mono); font-size:11px; font-weight:700; padding:8px 10px; border-radius:6px; border:1px solid var(--line); background:var(--panel-2); cursor:pointer; flex:none;}
+  .dl-toggle.run{color:var(--ok);} .dl-toggle.down{color:var(--bad); border-color:var(--bad);}
+  .dl-toggle:disabled{opacity:.4; cursor:not-allowed;}
+  .history-card.is-down{border-color:rgba(229,72,77,0.45); background:rgba(229,72,77,0.06);}
 </style>
 </head>
 <body>
@@ -497,6 +511,57 @@
 
   <!-- ===================== ROSTER VIEW ===================== -->
   <div class="view" id="view-roster">
+
+    <div class="section" style="padding-top:16px;">
+      <div class="section-head">
+        <div class="bar"></div>
+        <h2>Daily Running List</h2>
+        <div class="count" id="dlDateLabel"></div>
+      </div>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
+        Mark broken-down / unusable trucks as DOWN. Everything else is RUNNING.
+        Press <b>Declare</b> to lock in the trucks that must do the checklist on this date.
+      </div>
+      <div class="meta" style="padding:0 0 12px; grid-template-columns:1fr auto;">
+        <div class="field"><label>Date</label><input type="date" id="dlDateInput"></div>
+        <div class="field" style="align-self:end;"><button class="btn btn-ghost" id="dlTodayBtn" style="height:41px;">Today</button></div>
+      </div>
+      <div id="dlStatusBadge"></div>
+      <div class="dl-stats">
+        <div class="dl-stat"><div class="n" id="dlFleet">0</div><div class="l">Total Fleet</div></div>
+        <div class="dl-stat run"><div class="n" id="dlRunning">0</div><div class="l">Running</div></div>
+        <div class="dl-stat down"><div class="n" id="dlDown">0</div><div class="l">Down</div></div>
+      </div>
+      <div class="meta" style="padding:0 0 10px; grid-template-columns:1fr 1fr;">
+        <div class="field"><label>Parking</label><select id="dlParkingFilter"></select></div>
+        <div class="field"><label>Show</label>
+          <select id="dlShowFilter"><option value="">All</option><option value="down">Down only</option><option value="run">Running only</option></select>
+        </div>
+        <div class="field full"><input type="text" id="dlSearch" placeholder="Search plate #" autocapitalize="characters"></div>
+      </div>
+      <div style="background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:12px;">
+        <div class="field" style="margin-bottom:8px;">
+          <label>Google Sheet CSV link (Publish to web)</label>
+          <input type="text" id="dlSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv">
+        </div>
+        <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:var(--muted); margin-bottom:10px;">
+          <input type="checkbox" id="dlAutoDeclare"> Auto-declare today's list from the sheet (no admin action needed)
+        </label>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" id="dlSheetSaveBtn" style="flex:1;">Save Link</button>
+          <button class="btn btn-primary" id="dlSyncBtn" style="flex:1;">⟳ Sync From Sheet</button>
+        </div>
+        <div id="dlSyncReport" style="font-size:11.5px; color:var(--muted); margin-top:10px; line-height:1.5;"></div>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="dlCopyPrevBtn" style="flex:1;">Copy Down List From Previous Day</button>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <button class="btn btn-primary" id="dlDeclareBtn" style="flex:1;">Declare Running List</button>
+        <button class="btn btn-ghost" id="dlReopenBtn" style="display:none;">Re-open</button>
+      </div>
+      <div class="history-list" id="dlList"></div>
+    </div>
 
     <div class="section" style="padding-top:16px;">
       <div class="section-head">
@@ -1711,7 +1776,7 @@
     if(!activeTab) return;
     var name = activeTab.getAttribute('data-tab');
     if(name === 'history') loadHistory();
-    if(name === 'roster' && isAdmin){ loadRosterList(); loadAgencyList(); loadMechanicList(); }
+    if(name === 'roster' && isAdmin){ loadDailyList(); loadRosterList(); loadAgencyList(); loadMechanicList(); }
     if(name === 'summary') loadSummary();
     if(name === 'occurence'){ loadTopFlaggedDrivers(); loadTopFlaggedAgencies(); }
   }
@@ -2042,12 +2107,21 @@
 
     try{
       await refreshRosterCache(); // pick up roster changes from any device
+      var daily = await loadDailyState(dateInput.value);
+      if(!daily.declared && dateInput.value === todayInputValue()){
+        await loadSheetConfig();
+        if(sheetConfig.url && sheetConfig.autoDeclare){
+          try{ daily = await autoSyncAndDeclare(dateInput.value); }catch(e){ console.error('Auto-declare failed', e); }
+        }
+      }
+      // If the admin declared a running list for this date, ONLY those trucks count.
+      var targetMap = daily.declared ? daily.running : rosterCache;
 
       var totals = {};
       var rosterPlatesByParking = {}; // parking -> [plates]
       PARKING_LOCATIONS.forEach(function(p){ totals[p] = 0; rosterPlatesByParking[p] = []; });
-      Object.keys(rosterCache).forEach(function(plate){
-        var p = rosterCache[plate];
+      Object.keys(targetMap).forEach(function(plate){
+        var p = targetMap[plate];
         if(!p) return;
         totals[p] = (totals[p] || 0) + 1;
         rosterPlatesByParking[p] = rosterPlatesByParking[p] || [];
@@ -2064,6 +2138,7 @@
           var p = entry.parking;
           var plate = normalizePlate(entry.plate);
           if(!p || !plate) return;
+          if(daily.declared && !(plate in daily.running)) return; // not on that day's required list
 
           checkedByParking[p] = checkedByParking[p] || {};
           checkedByParking[p][plate] = true;
@@ -2138,7 +2213,10 @@
         cardsHtml += summaryCardHtml('p::'+p, p, checkedPlates.length, flaggedPlates.length, total, false, pendingPlates.sort(), flaggedDetails);
       });
 
-      list.innerHTML = summaryCardHtml('p::__ALL__', 'All Parking (Overall)', grandChecked, grandFlagged, grandTotal, true, grandPending.sort(), grandFlaggedDetails) + cardsHtml;
+      var banner = daily.declared
+        ? '<div class="summary-empty-note" style="margin:0 0 10px; color:var(--ok);">Declared running list: '+grandTotal+' of '+Object.keys(rosterEntries).length+' fleet trucks must undergo checklist on this date.</div>'
+        : '<div class="summary-empty-note" style="margin:0 0 10px;">No running list declared for this date — using the full roster ('+grandTotal+' trucks).</div>';
+      list.innerHTML = banner + summaryCardHtml('p::__ALL__', 'All Parking (Overall)', grandChecked, grandFlagged, grandTotal, true, grandPending.sort(), grandFlaggedDetails) + cardsHtml;
     }catch(e){
       list.innerHTML = '<div class="empty-state">Could not load summary.</div>';
       console.error(e);
@@ -2545,6 +2623,301 @@
     }
   }
 
+
+  // ---------- DAILY RUNNING LIST ----------
+  // One shared record per date ('daily-fleet-YYYY-MM-DD'):
+  //   down:     {plateKey: {plate, parking, reason}}  trucks NOT usable that day
+  //   declared: true once the admin locks the list
+  //   running:  {plateKey: parking} snapshot taken at declare time. The Summary
+  //             tab uses this as that day's checklist target, so later roster
+  //             edits never change a past day's numbers.
+  var dailyState = {declared:false, down:{}, running:{}};
+  var dailyDate = '';
+
+  function dailyKey(dateStr){ return 'daily-fleet-' + dateStr; }
+  function emptyDaily(){ return {declared:false, down:{}, running:{}}; }
+
+  async function loadDailyState(dateStr){
+    try{
+      var r = await storageAPI.get(dailyKey(dateStr), true);
+      var v = r && r.value ? JSON.parse(r.value) : null;
+      if(v){ v.down = v.down || {}; v.running = v.running || {}; return v; }
+    }catch(e){ /* missing key = not set up for that date */ }
+    return emptyDaily();
+  }
+  async function saveDailyState(dateStr, state){
+    dateStr = dateStr || dailyDate; state = state || dailyState;
+    state.date = dateStr;
+    await storageAPI.set(dailyKey(dateStr), JSON.stringify(state), true);
+  }
+
+  // ---------- GOOGLE SHEET SYNC ----------
+  // Sheet columns (header names are matched loosely, order doesn't matter):
+  //   Plate (required) | Status (Running / Down) | Reason (optional) | Date (optional)
+  // Trucks NOT listed in the sheet are treated as RUNNING, so the sheet can
+  // contain either the whole fleet or just the down units.
+  var sheetConfig = {url:'', autoDeclare:false};
+
+  async function loadSheetConfig(){
+    try{
+      var r = await storageAPI.get('daily-sheet-config', true);
+      if(r && r.value) sheetConfig = Object.assign({url:'', autoDeclare:false}, JSON.parse(r.value));
+    }catch(e){}
+    document.getElementById('dlSheetUrl').value = sheetConfig.url || '';
+    document.getElementById('dlAutoDeclare').checked = !!sheetConfig.autoDeclare;
+  }
+
+  function parseCsv(text){
+    var rows = [], row = [], cur = '', q = false;
+    for(var i=0;i<text.length;i++){
+      var c = text[i];
+      if(q){
+        if(c === '"'){ if(text[i+1] === '"'){ cur += '"'; i++; } else q = false; }
+        else cur += c;
+      }else if(c === '"'){ q = true; }
+      else if(c === ','){ row.push(cur); cur = ''; }
+      else if(c === '\n' || c === '\r'){
+        if(c === '\r' && text[i+1] === '\n') i++;
+        row.push(cur); cur = ''; rows.push(row); row = [];
+      }else cur += c;
+    }
+    if(cur !== '' || row.length){ row.push(cur); rows.push(row); }
+    return rows.filter(function(r){ return r.some(function(x){ return String(x).trim() !== ''; }); });
+  }
+
+  function cellToYmd(v){
+    v = String(v||'').trim();
+    var m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(m) return m[1] + '-' + m[2].padStart(2,'0') + '-' + m[3].padStart(2,'0');
+    m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); // M/D/YYYY
+    if(m){ var y = m[3].length === 2 ? '20' + m[3] : m[3]; return y + '-' + m[1].padStart(2,'0') + '-' + m[2].padStart(2,'0'); }
+    var d = new Date(v);
+    if(!isNaN(d)) return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    return '';
+  }
+
+  var DOWN_WORDS = ['down','breakdown','break down','broken','unusable','not usable','for repair','repair','under repair','maintenance','out of service','oos','inactive','no','n','not running','not available','unavailable','0'];
+  var RUN_WORDS = ['running','run','ok','usable','available','active','yes','y','operational','1'];
+
+  // Reads the sheet and returns {down, report}. Throws on fetch/format problems.
+  async function readSheetForDate(dateStr){
+    var url = (sheetConfig.url || '').trim();
+    if(!url) throw new Error('No Google Sheet link saved yet');
+    var res = await fetch(url + (url.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) throw new Error('Sheet request failed (' + res.status + '). Is it published to the web?');
+    var rows = parseCsv(await res.text());
+    if(rows.length < 2) throw new Error('Sheet is empty');
+    var head = rows[0].map(function(h){ return String(h).trim().toLowerCase(); });
+    function col(names){ for(var i=0;i<head.length;i++){ for(var j=0;j<names.length;j++){ if(head[i].indexOf(names[j]) > -1) return i; } } return -1; }
+    var cPlate = col(['plate']), cStatus = col(['status']), cReason = col(['reason','remark','note']), cDate = col(['date']);
+    if(cPlate < 0 || cStatus < 0) throw new Error('Sheet needs "Plate" and "Status" column headers');
+
+    var down = {}, notInRoster = [], unknown = [], used = 0;
+    rows.slice(1).forEach(function(r){
+      if(cDate > -1 && String(r[cDate]||'').trim() && cellToYmd(r[cDate]) !== dateStr) return;
+      var key = normalizePlate(r[cPlate]);
+      if(!key) return;
+      used++;
+      var st = String(r[cStatus]||'').trim().toLowerCase();
+      var isDown = DOWN_WORDS.indexOf(st) > -1;
+      var isRun = RUN_WORDS.indexOf(st) > -1;
+      if(!isDown && !isRun){ unknown.push(key + ' ("' + st + '")'); return; }
+      if(!rosterEntries[key]){ notInRoster.push(key); return; }
+      if(isDown){
+        down[key] = {plate: rosterEntries[key].plate, parking: rosterEntries[key].parking,
+                     reason: cReason > -1 ? String(r[cReason]||'').trim() : (r[cStatus]||'').trim()};
+      }
+    });
+    if(!used) throw new Error('No sheet rows found for ' + dateStr);
+    return {down: down, notInRoster: notInRoster, unknown: unknown, rows: used};
+  }
+
+  function buildRunningSnapshot(down){
+    var running = {};
+    Object.keys(rosterEntries).forEach(function(k){ if(!down[k]) running[k] = rosterEntries[k].parking; });
+    return running;
+  }
+
+  function sheetReportHtml(res){
+    var out = 'Synced ' + res.rows + ' sheet rows · ' + Object.keys(res.down).length + ' down.';
+    if(res.notInRoster.length) out += '<br><span style="color:var(--amber);">Not in roster (' + res.notInRoster.length + '): ' + escapeHtml(res.notInRoster.slice(0,15).join(', ')) + (res.notInRoster.length > 15 ? ' …' : '') + '</span>';
+    if(res.unknown.length) out += '<br><span style="color:var(--bad);">Unrecognized status (' + res.unknown.length + '): ' + escapeHtml(res.unknown.slice(0,10).join(', ')) + (res.unknown.length > 10 ? ' …' : '') + '</span>';
+    return out;
+  }
+
+  // Used by the Summary tab: if today has no declared list and auto-declare is on,
+  // pull the sheet and declare it without any admin action.
+  async function autoSyncAndDeclare(dateStr){
+    await refreshRosterCache();
+    var res = await readSheetForDate(dateStr);
+    var st = {declared:true, down:res.down, running:buildRunningSnapshot(res.down), declaredAt:new Date().toISOString(), source:'sheet-auto'};
+    await saveDailyState(dateStr, st);
+    return st;
+  }
+
+  async function syncFromSheet(auto){
+    var rep = document.getElementById('dlSyncReport');
+    if(dailyState.declared){ if(!auto) showToast('List already declared. Re-open it first.'); return; }
+    rep.textContent = 'Syncing…';
+    try{
+      var res = await readSheetForDate(dailyDate);
+      dailyState.down = res.down;
+      await saveDailyState();
+      rep.innerHTML = sheetReportHtml(res);
+      renderDailyList();
+    }catch(e){
+      console.error(e);
+      rep.innerHTML = '<span style="color:var(--bad);">' + escapeHtml(e.message || 'Sync failed') + '</span>';
+    }
+  }
+  function shiftDate(dateStr, days){
+    var p = dateStr.split('-').map(Number);
+    var d = new Date(p[0], p[1]-1, p[2] + days);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  (function initDailyFilters(){
+    document.getElementById('dlParkingFilter').innerHTML = '<option value="">All parking</option>' +
+      PARKING_LOCATIONS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('');
+  })();
+
+  async function loadDailyList(){
+    var input = document.getElementById('dlDateInput');
+    if(!input.value) input.value = todayInputValue();
+    dailyDate = input.value;
+    document.getElementById('dlList').innerHTML = '<div class="empty-state">Loading...</div>';
+    try{
+      await refreshRosterCache();
+      dailyState = await loadDailyState(dailyDate);
+      await loadSheetConfig();
+      renderDailyList();
+      if(!dailyState.declared && sheetConfig.url) await syncFromSheet(true);
+    }catch(e){
+      console.error(e);
+      document.getElementById('dlList').innerHTML = '<div class="empty-state">Could not load running list.</div>';
+    }
+  }
+
+  function renderDailyList(){
+    var keys = Object.keys(rosterEntries);
+    var fleet = keys.length;
+    var downKeys = keys.filter(function(k){ return dailyState.down[k]; });
+    var runningCount = fleet - downKeys.length;
+    var declared = !!dailyState.declared;
+
+    document.getElementById('dlFleet').textContent = fleet;
+    document.getElementById('dlRunning').textContent = runningCount;
+    document.getElementById('dlDown').textContent = downKeys.length;
+    document.getElementById('dlDateLabel').textContent = dailyDate;
+    document.getElementById('dlStatusBadge').innerHTML = declared
+      ? '<span class="dl-status declared">DECLARED · '+Object.keys(dailyState.running).length+' trucks must undergo checklist</span>'
+      : '<span class="dl-status draft">DRAFT · not yet declared (Summary uses full roster)</span>';
+    document.getElementById('dlDeclareBtn').style.display = declared ? 'none' : 'block';
+    document.getElementById('dlReopenBtn').style.display = declared ? 'block' : 'none';
+    document.getElementById('dlCopyPrevBtn').disabled = declared;
+
+    var pf = document.getElementById('dlParkingFilter').value;
+    var show = document.getElementById('dlShowFilter').value;
+    var q = normalizePlate(document.getElementById('dlSearch').value);
+
+    var rows = keys.map(function(k){ return {key:k, data:rosterEntries[k], down: !!dailyState.down[k]}; })
+      .filter(function(r){
+        if(pf && r.data.parking !== pf) return false;
+        if(show === 'down' && !r.down) return false;
+        if(show === 'run' && r.down) return false;
+        if(q && r.data.plate.indexOf(q) === -1) return false;
+        return true;
+      })
+      .sort(function(a,b){ return a.data.plate.localeCompare(b.data.plate); });
+
+    var list = document.getElementById('dlList');
+    if(!fleet){ list.innerHTML = '<div class="empty-state">No trucks in the roster yet.<br>Add trucks below first.</div>'; return; }
+    if(!rows.length){ list.innerHTML = '<div class="empty-state">No trucks match the filter.</div>'; return; }
+
+    list.innerHTML = '';
+    rows.forEach(function(r){
+      var card = document.createElement('div');
+      card.className = 'history-card' + (r.down ? ' is-down' : '');
+      var reason = r.down && dailyState.down[r.key].reason ? ' · ' + escapeHtml(dailyState.down[r.key].reason) : '';
+      card.innerHTML =
+        '<div class="history-meta">'+
+          '<div class="history-plate">'+escapeHtml(r.data.plate)+'</div>'+
+          '<div class="history-sub">'+escapeHtml(r.data.parking)+reason+'</div>'+
+        '</div>'+
+        '<button class="dl-toggle '+(r.down?'down':'run')+'"'+(declared?' disabled':'')+'>'+(r.down?'DOWN':'RUNNING')+'</button>';
+      card.querySelector('.dl-toggle').addEventListener('click', async function(){
+        if(r.down){
+          delete dailyState.down[r.key];
+        }else{
+          var reason = prompt('Reason for ' + r.data.plate + ' being unusable (e.g. Breakdown, For repair, No driver):', '');
+          if(reason === null) return;
+          dailyState.down[r.key] = {plate:r.data.plate, parking:r.data.parking, reason:reason.trim()};
+        }
+        try{ await saveDailyState(); }catch(e){ console.error(e); showToast('Save failed, try again'); await loadDailyList(); return; }
+        renderDailyList();
+      });
+      list.appendChild(card);
+    });
+  }
+
+  document.getElementById('dlDateInput').addEventListener('change', loadDailyList);
+  document.getElementById('dlTodayBtn').addEventListener('click', function(){
+    document.getElementById('dlDateInput').value = todayInputValue();
+    loadDailyList();
+  });
+  ['dlParkingFilter','dlShowFilter'].forEach(function(id){ document.getElementById(id).addEventListener('change', renderDailyList); });
+  document.getElementById('dlSearch').addEventListener('input', renderDailyList);
+
+  document.getElementById('dlSheetSaveBtn').addEventListener('click', async function(){
+    sheetConfig.url = document.getElementById('dlSheetUrl').value.trim();
+    sheetConfig.autoDeclare = document.getElementById('dlAutoDeclare').checked;
+    try{ await storageAPI.set('daily-sheet-config', JSON.stringify(sheetConfig), true); showToast('Sheet link saved'); }
+    catch(e){ console.error(e); showToast('Save failed, try again'); }
+  });
+  document.getElementById('dlSyncBtn').addEventListener('click', async function(){
+    sheetConfig.url = document.getElementById('dlSheetUrl').value.trim();
+    sheetConfig.autoDeclare = document.getElementById('dlAutoDeclare').checked;
+    await syncFromSheet(false);
+  });
+
+  document.getElementById('dlCopyPrevBtn').addEventListener('click', async function(){
+    // Carry over the most recent earlier day's DOWN list (within 14 days).
+    for(var i=1;i<=14;i++){
+      var prevDate = shiftDate(dailyDate, -i);
+      var prev = await loadDailyState(prevDate);
+      if(Object.keys(prev.down).length){
+        if(Object.keys(dailyState.down).length && !confirm('Replace current down list with ' + prevDate + '?')) return;
+        dailyState.down = JSON.parse(JSON.stringify(prev.down));
+        try{ await saveDailyState(); }catch(e){ showToast('Save failed, try again'); return; }
+        renderDailyList();
+        showToast('Copied ' + Object.keys(prev.down).length + ' down trucks from ' + prevDate);
+        return;
+      }
+    }
+    showToast('No earlier down list found');
+  });
+
+  document.getElementById('dlDeclareBtn').addEventListener('click', async function(){
+    var keys = Object.keys(rosterEntries);
+    var running = {};
+    keys.forEach(function(k){ if(!dailyState.down[k]) running[k] = rosterEntries[k].parking; });
+    var n = Object.keys(running).length;
+    if(!n){ showToast('No running trucks to declare'); return; }
+    if(!confirm('Declare ' + n + ' of ' + keys.length + ' trucks as running for ' + dailyDate + '?\nThese must undergo checklist.')) return;
+    dailyState.running = running;
+    dailyState.declared = true;
+    dailyState.declaredAt = new Date().toISOString();
+    try{ await saveDailyState(); }catch(e){ console.error(e); showToast('Declare failed, try again'); return; }
+    renderDailyList();
+    showToast('Declared ' + n + ' trucks for ' + dailyDate);
+  });
+
+  document.getElementById('dlReopenBtn').addEventListener('click', async function(){
+    if(!confirm('Re-open ' + dailyDate + '? You can edit the list, then declare again.')) return;
+    dailyState.declared = false;
+    try{ await saveDailyState(); }catch(e){ showToast('Save failed, try again'); return; }
+    renderDailyList();
+  });
 
   // ---------- AGENCY ROSTER ----------
   // Agencies are also shared storage, managed by admins the same way as the
