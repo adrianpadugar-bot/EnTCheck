@@ -2174,7 +2174,17 @@
         if(freshDaily) daily = freshDaily;
       }
       // If the admin declared a running list for this date, ONLY those trucks count.
-      var targetMap = daily.declared ? daily.running : rosterCache;
+      var sheetFleet = !daily.declared && daily.syncedAt && daily.parking && Object.keys(daily.parking).length > 0;
+      var targetMap;
+      if(daily.declared){ targetMap = daily.running || {}; }
+      else if(sheetFleet){
+        targetMap = {};
+        Object.keys(daily.parking).forEach(function(k){ if(!(daily.down || {})[k]) targetMap[k] = daily.parking[k]; });
+      }else{ targetMap = rosterCache; }
+      var useSheetNumbers = !!(daily.declared || sheetFleet);
+      var downCount = Object.keys(daily.down || {}).length;
+      var runCount = Object.keys(targetMap).length;
+      var noParkingCount = Object.keys(targetMap).filter(function(k){ return !targetMap[k]; }).length;
 
       var totals = {};
       var rosterPlatesByParking = {}; // parking -> [plates]
@@ -2197,7 +2207,7 @@
           var p = entry.parking;
           var plate = normalizePlate(entry.plate);
           if(!p || !plate) return;
-          if(daily.declared && !(plate in daily.running)) return; // not on that day's required list
+          if(useSheetNumbers && !(plate in targetMap)) return; // not on that day's required list
 
           checkedByParking[p] = checkedByParking[p] || {};
           checkedByParking[p][plate] = true;
@@ -2251,7 +2261,7 @@
             '<div class="summary-row-top"><div class="summary-label">Flagged / Issue ›</div><div class="summary-value flag">'+flaggedCount+' out '+total+' = '+flaggedPct+'%</div></div>'+
             '<div class="summary-bar"><div class="summary-bar-fill flag" style="width:'+flaggedPct+'%;"></div></div>'+
           '</div>'+
-          (total === 0 ? '<div class="summary-empty-note">No trucks in roster for this parking.</div>' : '') +
+          (total === 0 ? '<div class="summary-empty-note">No trucks on the running list for this parking.</div>' : '') +
         '</div>';
       }
 
@@ -2271,9 +2281,18 @@
         cardsHtml += summaryCardHtml('p::'+p, p, checkedPlates.length, flaggedPlates.length, total, false, pendingPlates.sort(), flaggedDetails);
       });
 
-      var banner = daily.declared
-        ? '<div class="summary-empty-note" style="margin:0 0 10px; color:var(--ok);">Declared running list: '+grandTotal+' of '+(Object.keys(daily.running||{}).length + Object.keys(daily.down||{}).length)+' fleet trucks must undergo checklist on this date.</div>'
-        : '<div class="summary-empty-note" style="margin:0 0 10px;">No running list declared for this date — using the full roster ('+grandTotal+' trucks).</div>';
+      var banner;
+      if(useSheetNumbers){
+        var tile = function(n, lbl, col){ return '<div style="flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 4px; text-align:center;"><div style="font-size:22px; font-weight:700; color:'+col+';">'+n+'</div><div style="font-size:10px; letter-spacing:.08em; color:var(--muted); text-transform:uppercase;">'+lbl+'</div></div>'; };
+        banner = '<div style="display:flex; gap:8px; margin:0 0 10px;">' +
+          tile(runCount + downCount, 'Total Fleet', 'var(--text)') +
+          tile(runCount, 'Running', 'var(--ok)') +
+          tile(downCount, 'Down', 'var(--bad)') + '</div>' +
+          '<div class="summary-empty-note" style="margin:0 0 10px; color:#fff;">' + runCount + ' running trucks must undergo checklist on this date (from the running list sheet).' +
+          (noParkingCount ? '<br>' + noParkingCount + ' of them have no valid parking in column D, so they are not counted in any parking card below.' : '') + '</div>';
+      }else{
+        banner = '<div class="summary-empty-note" style="margin:0 0 10px;">No running list for this date — using the full roster ('+grandTotal+' trucks).</div>';
+      }
       list.innerHTML = banner + summaryCardHtml('p::__ALL__', 'All Parking (Overall)', grandChecked, grandFlagged, grandTotal, true, grandPending.sort(), grandFlaggedDetails) + cardsHtml;
     }catch(e){
       list.innerHTML = '<div class="empty-state">Could not load summary.</div>';
