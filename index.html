@@ -2559,12 +2559,17 @@
   //   (optional extra columns headed "Reason" and "Date" are also picked up)
   // Trucks NOT listed in the sheet are treated as RUNNING, so the sheet can
   // contain either the whole fleet or just the down units.
-  var sheetConfig = {url:'', autoDeclare:false};
+  // Default sheet: "Checklist Running Trucks per Days". Used whenever no other link has been saved.
+  var DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Htgdk_etHrNW0XMd3Mwlq_BA6fDizjVgFXns0IUoh2c/edit?gid=0#gid=0';
+  var sheetConfig = {url:DEFAULT_SHEET_URL, autoDeclare:true};
 
   async function loadSheetConfig(){
     try{
       var r = await storageAPI.get('daily-sheet-config', true);
-      if(r && r.value) sheetConfig = Object.assign({url:'', autoDeclare:false}, JSON.parse(r.value));
+      if(r && r.value){
+        sheetConfig = Object.assign({url:DEFAULT_SHEET_URL, autoDeclare:true}, JSON.parse(r.value));
+        if(!String(sheetConfig.url||'').trim()) sheetConfig.url = DEFAULT_SHEET_URL;
+      }
     }catch(e){}
     document.getElementById('dlSheetUrl').value = sheetConfig.url || '';
     document.getElementById('dlAutoDeclare').checked = !!sheetConfig.autoDeclare;
@@ -2965,6 +2970,38 @@
   });
   setInterval(function(){ autoRefreshToday(false); }, AUTO_REFRESH_MS);
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) autoRefreshToday(false); });
+
+  // ---------- INSTANT SYNC ON SHEET EDIT ----------
+  // A small Google Apps Script attached to the sheet (see apps-script-sheet-sync.gs)
+  // writes a timestamp to the Firestore doc app_data/shared__sheet-ping every time the
+  // sheet is edited. Every open device listens to that doc and re-reads the sheet at once.
+  // The 60s polling above stays as a safety net if the script is ever not installed.
+  (function(){
+    if(!usingFirestore || typeof firebase === 'undefined') return;
+    var firstSnapshot = true, lastPing = null, pending = null;
+    function syncNow(){
+      var delays = [4000, 15000]; // Google can take a few seconds to publish the edit; re-check once more
+      delays.forEach(function(ms){
+        setTimeout(async function(){
+          try{
+            var st = await autoRefreshToday(true);
+            if(st){ await refreshTodayList(); refreshActiveView(); }
+          }catch(e){ console.error('Sheet-ping sync failed', e); }
+        }, ms);
+      });
+    }
+    try{
+      firebase.firestore().collection('app_data').doc('shared__sheet-ping').onSnapshot(function(snap){
+        if(!snap.exists) return;
+        var v = (snap.data() || {}).value;
+        if(firstSnapshot){ firstSnapshot = false; lastPing = v; return; } // ignore the value present at page load
+        if(v === lastPing) return;
+        lastPing = v;
+        clearTimeout(pending);
+        pending = setTimeout(syncNow, 500); // collapse bursts of edits into one sync
+      }, function(err){ console.warn('Sheet-ping listener error', err); });
+    }catch(e){ console.warn('Sheet-ping listener not started', e); }
+  })();
 
   // ---------- AGENCY ROSTER ----------
   // Shared storage, managed by admins. Stored as ONE JSON blob ('agency-data') keyed by
