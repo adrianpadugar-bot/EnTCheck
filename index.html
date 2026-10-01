@@ -2720,7 +2720,8 @@
     return out;
   }
 
-  var AUTO_REFRESH_MS = 5 * 60 * 1000;
+  var AUTO_REFRESH_MS = 60 * 1000; // check the sheet about every minute
+  var lastAutoCheckAt = 0;
   var lastSheetRes = null;
 
   // Pulls the sheet for dateStr and (re)declares that day's running list.
@@ -2733,7 +2734,12 @@
     var nowIso = new Date().toISOString();
     var st = {declared:true, down:res.down, parking:res.parkingMap, running:buildRunningSnapshot(res.down, res.parkingMap),
               declaredAt: prev.declaredAt || nowIso, syncedAt: nowIso, source:'sheet-auto'};
+    lastAutoCheckAt = Date.now();
+    // Sheet unchanged since the last sync: skip the save (keeps storage traffic low).
+    var sig = function(o){ return JSON.stringify([o.down||{}, o.parking||{}, o.running||{}]); };
+    if(prev.source === 'sheet-auto' && prev.declared && sig(prev) === sig(st)) return prev;
     await saveDailyState(dateStr, st);
+    if(prev.source === 'sheet-auto') showToast('Running list updated from the sheet');
     return st;
   }
 
@@ -2748,7 +2754,7 @@
       var cur = await loadDailyState(today);
       if(cur.source === 'manual') return null;
       if(cur.declared && cur.source !== 'sheet-auto') return null;
-      if(!force && cur.syncedAt && (Date.now() - new Date(cur.syncedAt).getTime()) < AUTO_REFRESH_MS - 30000) return cur;
+      if(!force && (Date.now() - lastAutoCheckAt) < 30000) return cur;
       return await autoSyncAndDeclare(today);
     }catch(e){
       console.error('Auto refresh failed', e);
