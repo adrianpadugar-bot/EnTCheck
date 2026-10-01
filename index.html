@@ -2578,6 +2578,29 @@
 
   // Accepts a normal Google Sheets link (edit/share/view) as well as a published CSV link.
   // Normal links are converted to the CSV endpoint that browsers are allowed to read.
+  var lastSheetTried = [];
+  function csvCandidates(url){
+    url = String(url||'').trim();
+    var out = [];
+    var pub = /\/spreadsheets\/d\/e\//.test(url);
+    if(pub){
+      if(url.indexOf('output=csv') > -1){ out.push(url); return out; }
+      // A "Web page" (pubhtml) link was pasted: turn it into the CSV version of the same tab.
+      var pg = (url.match(/[?&]gid=(\d+)/) || [])[1];
+      var pb = url.replace(/\/pub[^?]*.*$/, '/pub');
+      out.push(pb + '?' + (pg ? 'gid=' + pg + '&single=true&' : '') + 'output=csv');
+      out.push(url);
+      return out;
+    }
+    var m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if(!m){ out.push(url); return out; }
+    var gid = (url.match(/[#&?]gid=(\d+)/) || [])[1];
+    var base = 'https://docs.google.com/spreadsheets/d/' + m[1];
+    out.push(base + '/gviz/tq?tqx=out:csv' + (gid ? '&gid=' + gid : ''));
+    out.push(base + '/export?format=csv' + (gid ? '&gid=' + gid : ''));
+    out.push(base + '/pub?output=csv' + (gid ? '&gid=' + gid : ''));
+    return out;
+  }
   function toCsvUrl(url){
     url = String(url||'').trim();
     if(/\/spreadsheets\/d\/e\//.test(url)) return url; // already a published link
@@ -2591,17 +2614,24 @@
   async function readSheetForDate(dateStr){
     var url = (sheetConfig.url || '').trim();
     if(!url) throw new Error('No Google Sheet link saved yet');
-    url = toCsvUrl(url);
-    var res;
-    try{
-      res = await fetch(url + (url.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now(), {cache:'no-store'});
-    }catch(err){
-      throw new Error('Failed to fetch the sheet. In Google Sheets use File > Share > Publish to web > choose the tab > CSV, then paste that link here (or set sharing to "Anyone with the link: Viewer").');
+    // Try every way Google offers to read the sheet as CSV until one works.
+    var cands = csvCandidates(url), res = null, text = '', tried = [];
+    for(var ci=0; ci<cands.length && !res; ci++){
+      var u = cands[ci];
+      try{
+        var r = await fetch(u + (u.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now(), {cache:'no-store'});
+        if(!r.ok){ tried.push('HTTP ' + r.status); continue; }
+        var ct = (r.headers.get('content-type') || '').toLowerCase();
+        var t = await r.text();
+        if(ct.indexOf('text/html') > -1 || /^\s*<(!doctype|html)/i.test(t)){ tried.push('got a web page, not CSV (sheet not public?)'); continue; }
+        res = r; text = t;
+      }catch(err){ tried.push('blocked/network error'); }
     }
-    if(!res.ok) throw new Error('Sheet request failed (' + res.status + '). Publish it to the web as CSV, or share it as "Anyone with the link".');
-    var ctype = (res.headers.get('content-type') || '').toLowerCase();
-    if(ctype.indexOf('text/html') > -1) throw new Error('Google returned a web page instead of CSV. Publish the sheet to the web as CSV, or set sharing to "Anyone with the link".');
-    var rows = parseCsv(await res.text());
+    if(!res){
+      lastSheetTried = cands;
+      throw new Error('Failed to fetch the sheet (' + tried.join(' | ') + '). Open this link in a new browser tab to test it: ' + cands[0] + ' — if it does not show CSV text, the sheet is not published/shared publicly. If it does, the page hosting this app may be blocking requests to docs.google.com.');
+    }
+    var rows = parseCsv(text);
     if(rows.length < 2) throw new Error('Sheet is empty');
     // Fixed layout: A = Plate, B = Status (Running / Down), D = Parking (column C is skipped).
     // Optional: a column headed "Reason"/"Remark" and one headed "Date" anywhere in the sheet.
