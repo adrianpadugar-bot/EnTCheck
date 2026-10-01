@@ -2643,8 +2643,18 @@
 
   // Reads the sheet and returns {down, report}. Throws on fetch/format problems.
   async function readSheetForDate(dateStr){
+    // 1) Preferred: rows pushed from the Google Sheet into Firebase by the Apps Script
+    //    (works with a PRIVATE sheet). 2) Fallback: read the sheet/CSV link directly.
+    var rows = null, feedAt = '';
+    try{
+      var fr = await storageAPI.get('sheet-feed', true);
+      var fo = fr && fr.value ? JSON.parse(fr.value) : null;
+      if(fo && fo.rows && fo.rows.length){ rows = fo.rows; feedAt = fo.pushedAt || ''; }
+    }catch(e){ /* no feed yet */ }
+    var text = '';
+    if(!rows){
     var url = (sheetConfig.url || '').trim();
-    if(!url) throw new Error('No Google Sheet link saved yet');
+    if(!url) throw new Error('No data from the sheet yet: install the Apps Script (apps-script-firebase-push.gs) and run installTrigger, or save a sheet link.');
     // Try every way Google offers to read the sheet as CSV until one works.
     var cands = csvCandidates(url), res = null, text = '', tried = [];
     for(var ci=0; ci<cands.length && !res; ci++){
@@ -2662,7 +2672,8 @@
       lastSheetTried = cands;
       throw new Error('Failed to fetch the sheet (' + tried.join(' | ') + '). Open this link in a new browser tab to test it: ' + cands[0] + ' — if it does not show CSV text, the sheet is not published/shared publicly. If it does, the page hosting this app may be blocking requests to docs.google.com.');
     }
-    var rows = parseCsv(text);
+    rows = parseCsv(text);
+    }
     if(rows.length < 2) throw new Error('Sheet is empty');
     // Fixed layout: A = Plate, B = Status (Running / Down), D = Parking (column C is skipped).
     // Optional: a column headed "Reason"/"Remark" and one headed "Date" anywhere in the sheet.
@@ -2698,7 +2709,7 @@
       }
     });
     if(!used) throw new Error('No sheet rows found for ' + dateStr);
-    return {down: down, parkingMap: parkingMap, notInRoster: notInRoster, unknown: unknown, badParking: badParking, rows: used};
+    return {down: down, parkingMap: parkingMap, notInRoster: notInRoster, unknown: unknown, badParking: badParking, rows: used, feedAt: feedAt};
   }
 
   function buildRunningSnapshot(down, parkingMap){
@@ -2714,7 +2725,7 @@
   }
 
   function sheetReportHtml(res){
-    var out = 'Synced ' + res.rows + ' sheet rows · ' + Object.keys(res.down).length + ' down.';
+    var out = 'Synced ' + res.rows + ' sheet rows · ' + Object.keys(res.down).length + ' down.' + (res.feedAt ? ' (pushed from the sheet ' + new Date(res.feedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'}) + ')' : ' (read from link)');
     if(res.notInRoster.length) out += '<br><span style="color:var(--amber);">Not in roster (' + res.notInRoster.length + '): ' + escapeHtml(res.notInRoster.slice(0,15).join(', ')) + (res.notInRoster.length > 15 ? ' …' : '') + '</span>';
     if(res.badParking.length){
       var cnt = {}; res.badParking.forEach(function(v){ cnt[v] = (cnt[v]||0) + 1; });
@@ -2754,7 +2765,7 @@
   async function autoRefreshToday(force){
     try{
       await loadSheetConfig();
-      if(!sheetConfig.url || !sheetConfig.autoDeclare) return null;
+      if(!sheetConfig.autoDeclare) return null;
       var today = todayInputValue();
       var cur = await loadDailyState(today);
       if(cur.source === 'manual') return null;
@@ -2811,7 +2822,7 @@
         if(fresh) dailyState = fresh;
       }
       renderDailyList();
-      if(!dailyState.declared && sheetConfig.url) await syncFromSheet(true);
+      if(!dailyState.declared) await syncFromSheet(true);
     }catch(e){
       console.error(e);
       document.getElementById('dlList').innerHTML = '<div class="empty-state">Could not load running list.</div>';
@@ -2972,35 +2983,38 @@
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) autoRefreshToday(false); });
 
   // ---------- INSTANT SYNC ON SHEET EDIT ----------
-  // A small Google Apps Script attached to the sheet (see apps-script-sheet-sync.gs)
-  // writes a timestamp to the Firestore doc app_data/shared__sheet-ping every time the
-  // sheet is edited. Every open device listens to that doc and re-reads the sheet at once.
-  // The 60s polling above stays as a safety net if the script is ever not installed.
+  // The Apps Script in the sheet (apps-script-firebase-push.gs) writes the sheet rows to
+  // Firestore doc app_data/shared__sheet-feed on every edit. Every open device listens to
+  // that doc and rebuilds today's list from it within a second or two.
+  // The 60s polling above stays as a safety net.
   (function(){
     if(!usingFirestore || typeof firebase === 'undefined') return;
-    var firstSnapshot = true, lastPing = null, pending = null;
+    var pending = null;
     function syncNow(){
-      var delays = [4000, 15000]; // Google can take a few seconds to publish the edit; re-check once more
-      delays.forEach(function(ms){
-        setTimeout(async function(){
-          try{
-            var st = await autoRefreshToday(true);
-            if(st){ await refreshTodayList(); refreshActiveView(); }
-          }catch(e){ console.error('Sheet-ping sync failed', e); }
-        }, ms);
-      });
+      setTimeout(async function(){
+        try{
+          var st = await autoRefreshToday(true);
+          if(st){ await refreshTodayList(); refreshActiveView(); }
+        }catch(e){ console.error('Sheet feed sync failed', e); }
+      }, 300);
     }
-    try{
-      firebase.firestore().collection('app_data').doc('shared__sheet-ping').onSnapshot(function(snap){
-        if(!snap.exists) return;
-        var v = (snap.data() || {}).value;
-        if(firstSnapshot){ firstSnapshot = false; lastPing = v; return; } // ignore the value present at page load
-        if(v === lastPing) return;
-        lastPing = v;
-        clearTimeout(pending);
-        pending = setTimeout(syncNow, 500); // collapse bursts of edits into one sync
-      }, function(err){ console.warn('Sheet-ping listener error', err); });
-    }catch(e){ console.warn('Sheet-ping listener not started', e); }
+    function watch(docId){
+      var first = true, last = null;
+      try{
+        firebase.firestore().collection('app_data').doc(docId).onSnapshot(function(snap){
+          if(!snap.exists) return;
+          var v = (snap.data() || {}).updatedAt;
+          var stamp = v && v.toMillis ? String(v.toMillis()) : String((snap.data() || {}).value || '').length + ':' + String((snap.data() || {}).value || '').slice(-40);
+          if(first){ first = false; last = stamp; return; } // ignore the value present at page load
+          if(stamp === last) return;
+          last = stamp;
+          clearTimeout(pending);
+          pending = setTimeout(syncNow, 500); // collapse bursts of edits into one sync
+        }, function(err){ console.warn('Listener error ' + docId, err); });
+      }catch(e){ console.warn('Listener not started ' + docId, e); }
+    }
+    watch('shared__sheet-feed');
+    watch('shared__sheet-ping');
   })();
 
   // ---------- AGENCY ROSTER ----------
